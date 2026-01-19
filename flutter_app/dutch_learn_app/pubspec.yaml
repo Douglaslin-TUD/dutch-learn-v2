@@ -1,0 +1,68 @@
+name: dutch_learn_app
+description: A Dutch language learning app with audio playback and Google Drive sync.
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.0.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # State Management
+  flutter_riverpod: ^2.4.0
+  riverpod_annotation: ^2.3.0
+
+  # Database
+  sqflite: ^2.3.0
+  path_provider: ^2.1.1
+  path: ^1.8.3
+
+  # Audio
+  just_audio: ^0.9.35
+  audio_session: ^0.1.18
+  just_audio_mpv: ^0.1.7  # Linux desktop audio support
+
+  # Google Sign-In and Drive
+  google_sign_in: ^6.1.5
+  googleapis: ^12.0.0
+  googleapis_auth: ^1.4.1
+  http: ^1.1.0
+
+  # Navigation
+  go_router: ^12.1.3
+
+  # Code Generation
+  freezed_annotation: ^2.4.1
+  json_annotation: ^4.8.1
+
+  # Utils
+  uuid: ^4.2.1
+  intl: ^0.18.1
+  collection: ^1.18.0
+  shared_preferences: ^2.2.2
+
+  # UI
+  cupertino_icons: ^1.0.6
+  flutter_slidable: ^3.0.1
+
+  # File picker for local import
+  file_picker: ^8.0.0
+
+  # Desktop database support
+  sqflite_common_ffi: ^2.3.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^3.0.1
+  build_runner: ^2.4.7
+  freezed: ^2.4.5
+  json_serializable: ^6.7.1
+  riverpod_generator: ^2.3.9
+  mockito: ^5.4.3
+  sqflite_common_ffi: ^2.3.0
+
+flutter:
+  uses-material-design: true

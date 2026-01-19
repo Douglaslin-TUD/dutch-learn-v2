@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Dutch Learn</string>
+    <!-- Replace with your OAuth Web Client ID from Google Cloud Console -->
+    <string name="default_web_client_id">542531085476-efaali1rr56hqfrb6dkdfghiqidumap7.apps.googleusercontent.com</string>
+</resources>

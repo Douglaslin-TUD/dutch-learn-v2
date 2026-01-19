@@ -1,0 +1,442 @@
+/**
+ * Dutch Language Learning Application - Custom Styles
+ *
+ * This file contains custom CSS styles that extend Tailwind CSS.
+ * Most styling is done via Tailwind utility classes in the HTML/JS.
+ */
+
+/* ============================================================================
+   Base Styles
+   ============================================================================ */
+
+/* Smooth scrolling for the entire page */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Custom scrollbar styling for WebKit browsers */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: #f1f5f9;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+}
+
+/* Firefox scrollbar styling */
+* {
+    scrollbar-width: thin;
+    scrollbar-color: #cbd5e1 #f1f5f9;
+}
+
+/* Selection color */
+::selection {
+    background-color: #bfdbfe;
+    color: #1e3a8a;
+}
+
+/* ============================================================================
+   Typography
+   ============================================================================ */
+
+/* Dutch text often has special characters, ensure proper rendering */
+.sentence-text,
+.detail-panel p {
+    font-feature-settings: "kern" 1, "liga" 1;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================================================
+   Animation & Transitions
+   ============================================================================ */
+
+/* Fade in animation for views */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.fade-in {
+    animation: fadeIn 0.3s ease-out forwards;
+}
+
+/* Pulse animation for loading states */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.animate-pulse-subtle {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Scale animation for buttons */
+.btn-scale {
+    transition: transform 0.1s ease-out;
+}
+
+.btn-scale:active {
+    transform: scale(0.95);
+}
+
+/* ============================================================================
+   Components
+   ============================================================================ */
+
+/* Project Cards */
+.project-card {
+    transition: all 0.2s ease-out;
+}
+
+.project-card:hover {
+    transform: translateY(-2px);
+}
+
+/* Sentence List Items */
+.sentence-item {
+    transition: all 0.15s ease-out;
+}
+
+.sentence-item:hover {
+    background-color: #f9fafb;
+}
+
+.sentence-item.selected {
+    background-color: #eff6ff;
+    border-left: 4px solid #3b82f6;
+}
+
+/* Playing indicator */
+.sentence-item.playing .sentence-number {
+    background-color: #3b82f6;
+    color: white;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
+/* Audio Progress Bar */
+#progress-container {
+    position: relative;
+}
+
+#progress-container::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 9999px;
+    background: transparent;
+}
+
+#progress-container:hover #audio-progress {
+    background-color: #2563eb;
+}
+
+/* Speed Menu */
+#speed-menu {
+    z-index: 100;
+}
+
+/* ============================================================================
+   Drop Zone
+   ============================================================================ */
+
+#drop-zone {
+    transition: all 0.2s ease-out;
+}
+
+#drop-zone.drag-over {
+    border-color: #3b82f6;
+    background-color: #eff6ff;
+    transform: scale(1.02);
+}
+
+#drop-zone:focus-within {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+}
+
+/* ============================================================================
+   Toast Notifications
+   ============================================================================ */
+
+.toast-enter {
+    transform: translateY(100%);
+    opacity: 0;
+}
+
+.toast-enter-active {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.toast-exit {
+    transform: translateY(0);
+    opacity: 1;
+}
+
+.toast-exit-active {
+    transform: translateY(100%);
+    opacity: 0;
+}
+
+/* ============================================================================
+   Loading States
+   ============================================================================ */
+
+/* Skeleton loading effect */
+.skeleton {
+    background: linear-gradient(
+        90deg,
+        #f1f5f9 25%,
+        #e2e8f0 50%,
+        #f1f5f9 75%
+    );
+    background-size: 200% 100%;
+    animation: skeleton-loading 1.5s infinite;
+}
+
+@keyframes skeleton-loading {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+/* ============================================================================
+   Detail Panel
+   ============================================================================ */
+
+#detail-panel {
+    line-height: 1.7;
+}
+
+#detail-panel h4 {
+    letter-spacing: 0.05em;
+}
+
+/* Vocabulary cards */
+#detail-panel .bg-gray-50 {
+    transition: all 0.15s ease-out;
+}
+
+#detail-panel .bg-gray-50:hover {
+    background-color: #f3f4f6;
+    transform: translateX(4px);
+}
+
+/* ============================================================================
+   Audio Player
+   ============================================================================ */
+
+/* Play button ripple effect */
+#play-btn {
+    position: relative;
+    overflow: hidden;
+}
+
+#play-btn::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle, rgba(255,255,255,0.3) 0%, transparent 70%);
+    transform: scale(0);
+    opacity: 0;
+    transition: transform 0.3s, opacity 0.3s;
+}
+
+#play-btn:active::after {
+    transform: scale(2);
+    opacity: 1;
+    transition: transform 0s, opacity 0s;
+}
+
+/* Loop button active state */
+#loop-btn.active {
+    background-color: #dbeafe;
+    color: #2563eb;
+}
+
+#loop-btn.active svg {
+    animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* ============================================================================
+   Responsive Adjustments
+   ============================================================================ */
+
+@media (max-width: 768px) {
+    /* Stack panels on mobile */
+    .flex-1.flex.gap-4 {
+        flex-direction: column;
+    }
+
+    .flex-1.flex.gap-4 > div {
+        width: 100% !important;
+        max-height: 50vh;
+    }
+
+    /* Smaller audio controls */
+    #play-btn {
+        width: 40px;
+        height: 40px;
+    }
+
+    /* Hide keyboard shortcuts help on mobile */
+    .text-center.text-sm.text-gray-500:last-child {
+        display: none;
+    }
+
+    /* Smaller text for progress times */
+    #current-time,
+    #total-time {
+        font-size: 0.75rem;
+        width: auto;
+    }
+}
+
+@media (max-width: 640px) {
+    /* Full width cards */
+    .grid.md\:grid-cols-2 {
+        grid-template-columns: 1fr;
+    }
+
+    /* Compact header */
+    header .flex {
+        padding: 0.5rem 0;
+    }
+
+    /* Smaller title */
+    header .text-xl {
+        font-size: 1rem;
+    }
+}
+
+/* ============================================================================
+   Print Styles
+   ============================================================================ */
+
+@media print {
+    /* Hide interactive elements */
+    #play-btn,
+    #loop-btn,
+    #speed-btn,
+    #progress-container,
+    header,
+    .delete-project-btn {
+        display: none !important;
+    }
+
+    /* Full width for printing */
+    .max-w-7xl {
+        max-width: 100%;
+    }
+
+    /* Remove shadows and borders */
+    .shadow-sm,
+    .shadow-md,
+    .shadow-lg {
+        box-shadow: none !important;
+    }
+
+    .border {
+        border: 1px solid #e5e7eb !important;
+    }
+}
+
+/* ============================================================================
+   Accessibility
+   ============================================================================ */
+
+/* Focus visible styles */
+:focus-visible {
+    outline: 2px solid #3b82f6;
+    outline-offset: 2px;
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* High contrast mode adjustments */
+@media (prefers-contrast: high) {
+    .bg-primary-50 {
+        background-color: #bfdbfe;
+    }
+
+    .text-gray-500 {
+        color: #4b5563;
+    }
+
+    .border-gray-200 {
+        border-color: #6b7280;
+    }
+}
+
+/* ============================================================================
+   Dark Mode Support (Future)
+   ============================================================================ */
+
+/* Prepared for future dark mode implementation
+@media (prefers-color-scheme: dark) {
+    body {
+        background-color: #111827;
+        color: #f9fafb;
+    }
+
+    .bg-white {
+        background-color: #1f2937;
+    }
+
+    .text-gray-900 {
+        color: #f9fafb;
+    }
+
+    .text-gray-600 {
+        color: #d1d5db;
+    }
+
+    .border-gray-200 {
+        border-color: #374151;
+    }
+}
+*/
