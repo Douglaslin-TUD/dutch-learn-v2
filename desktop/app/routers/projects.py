@@ -11,14 +11,14 @@ from typing import List, Optional
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, Body
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db, init_db
-from app.models import Project, Sentence, Keyword
+from app.models import Project, Sentence, Keyword, Speaker
 from app.services.processor import process_project_background
 from app.utils.file_utils import (
     validate_file_extension,
@@ -215,20 +215,20 @@ async def create_project(
     )
 
 
-@router.get("/{project_id}", response_model=ProjectDetail)
+@router.get("/{project_id}")
 async def get_project(
     project_id: str,
     db: Session = Depends(get_db),
-) -> ProjectDetail:
+):
     """
-    Get detailed project information including all sentences.
+    Get a specific project with sentences and speakers.
 
     Args:
         project_id: The project UUID.
         db: Database session.
 
     Returns:
-        ProjectDetail: Full project data with sentences and keywords.
+        dict: Full project data with sentences, keywords, and speakers.
 
     Raises:
         HTTPException: If project not found.
@@ -238,55 +238,7 @@ async def get_project(
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
 
-    sentences = (
-        db.query(Sentence)
-        .filter(Sentence.project_id == project_id)
-        .order_by(Sentence.idx)
-        .all()
-    )
-
-    sentence_responses = []
-    for s in sentences:
-        keywords = db.query(Keyword).filter(Keyword.sentence_id == s.id).all()
-        sentence_responses.append(
-            SentenceResponse(
-                id=s.id,
-                index=s.idx,
-                text=s.text,
-                start_time=s.start_time,
-                end_time=s.end_time,
-                duration=s.duration,
-                translation_en=s.translation_en,
-                explanation_nl=s.explanation_nl,
-                explanation_en=s.explanation_en,
-                has_explanation=s.has_explanation,
-                keywords=[
-                    KeywordResponse(
-                        id=k.id,
-                        word=k.word,
-                        meaning_nl=k.meaning_nl,
-                        meaning_en=k.meaning_en,
-                    )
-                    for k in keywords
-                ],
-            )
-        )
-
-    return ProjectDetail(
-        id=project.id,
-        name=project.name,
-        original_file=project.original_file,
-        audio_file=project.audio_file,
-        status=project.status,
-        error_message=project.error_message,
-        progress=project.progress,
-        current_stage=project.current_stage_description,
-        total_sentences=project.total_sentences,
-        processed_sentences=project.processed_sentences,
-        created_at=project.created_at.isoformat() if project.created_at else "",
-        updated_at=project.updated_at.isoformat() if project.updated_at else "",
-        sentences=sentence_responses,
-    )
+    return project.to_dict(include_sentences=True, include_speakers=True)
 
 
 @router.delete("/{project_id}")
@@ -612,3 +564,74 @@ async def import_project(
             "projects": imported_projects,
         }
     )
+
+
+@router.put("/{project_id}/speakers/{speaker_id}")
+async def update_speaker(
+    project_id: str,
+    speaker_id: str,
+    name: str = Body(..., embed=True),
+    db: Session = Depends(get_db),
+):
+    """
+    Update speaker display name.
+
+    This marks the speaker as manually named, preventing auto-override.
+
+    Args:
+        project_id: The project UUID.
+        speaker_id: The speaker UUID.
+        name: The new display name.
+        db: Database session.
+
+    Returns:
+        dict: Success status and updated speaker data.
+
+    Raises:
+        HTTPException: If speaker not found.
+    """
+    speaker = (
+        db.query(Speaker)
+        .filter(Speaker.id == speaker_id, Speaker.project_id == project_id)
+        .first()
+    )
+
+    if not speaker:
+        raise HTTPException(status_code=404, detail="Speaker not found")
+
+    speaker.display_name = name
+    speaker.is_manual = True
+    db.commit()
+
+    return {"success": True, "speaker": speaker.to_dict()}
+
+
+@router.get("/{project_id}/speakers")
+async def get_speakers(
+    project_id: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Get all speakers for a project.
+
+    Args:
+        project_id: The project UUID.
+        db: Database session.
+
+    Returns:
+        dict: List of speakers.
+
+    Raises:
+        HTTPException: If project not found.
+    """
+    project = db.query(Project).filter(Project.id == project_id).first()
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    speakers = (
+        db.query(Speaker)
+        .filter(Speaker.project_id == project_id)
+        .all()
+    )
+
+    return {"speakers": [s.to_dict() for s in speakers]}
