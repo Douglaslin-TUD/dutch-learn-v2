@@ -6,24 +6,49 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Dutch Language Learning Application - enables users to study Dutch from audio/video content by providing interactive transcriptions with AI-powered explanations and vocabulary extraction.
 
-**Architecture:** Monolithic web application (Python FastAPI backend + Vanilla JS frontend) with a companion Flutter mobile app. Both share data via Google Drive sync.
+**Architecture:** Two separate applications sharing data via Google Drive sync:
+- **Desktop (Web App)** - Python FastAPI backend + Vanilla JS frontend (`desktop/`)
+- **Mobile (Flutter App)** - Cross-platform mobile app (`mobile/`)
+
+## Project Structure
+
+```
+/
+├── desktop/               ← 🖥️ 电脑端 Web 应用
+│   ├── app/               ← Python FastAPI 后端
+│   ├── static/            ← HTML/JS/CSS 前端
+│   ├── requirements.txt
+│   └── run.py
+│
+├── mobile/                ← 📱 手机端 Flutter 应用
+│   ├── lib/               ← Dart 源代码
+│   ├── android/
+│   ├── pubspec.yaml
+│   └── ...
+│
+├── docs/                  ← 📚 项目文档
+├── scripts/               ← 🔧 工具脚本
+└── data/                  ← 💾 运行时数据
+```
 
 ## Common Commands
 
-### Backend (Web App)
+### Desktop (Web App)
 
 ```bash
-# Start the server (from project root)
-source venv/bin/activate
+cd desktop
+
+# Start the server
+source ../venv/bin/activate
 python run.py
 # Access at http://localhost:8000
 # API docs at http://localhost:8000/docs
 ```
 
-### Flutter App
+### Mobile (Flutter App)
 
 ```bash
-cd flutter_app/dutch_learn_app
+cd mobile
 
 # Get dependencies
 flutter pub get
@@ -55,9 +80,9 @@ Upload → Extract (FFmpeg) → Transcribe (Whisper API) → Explain (GPT API) �
 
 Project status flows through: `pending` → `extracting` → `transcribing` → `explaining` → `ready` (or `error`)
 
-The `Processor` class in `app/services/processor.py` orchestrates this pipeline, coordinating `AudioExtractor`, `Transcriber`, and `Explainer` services. Processing runs as a background task initiated by the projects router.
+The `Processor` class in `desktop/app/services/processor.py` orchestrates this pipeline, coordinating `AudioExtractor`, `Transcriber`, and `Explainer` services. Processing runs as a background task initiated by the projects router.
 
-### Backend Structure (`app/`)
+### Desktop Backend Structure (`desktop/app/`)
 
 - `main.py` - FastAPI entry point, mounts routers and static files
 - `config.py` - Pydantic Settings loading from `.env`
@@ -73,14 +98,14 @@ The `Processor` class in `app/services/processor.py` orchestrates this pipeline,
   - `progress_merger.py` - Merges learning progress between desktop/mobile
   - `config_encryptor.py` - Encrypts API key for secure mobile transfer
 
-### Frontend Structure (`static/`)
+### Desktop Frontend Structure (`desktop/static/`)
 
 - `index.html` - SPA HTML (Tailwind CSS via CDN)
 - `js/app.js` - Main SPA logic, hash-based routing (#/, #/upload, #/project/:id)
 - `js/api.js` - API client wrapper
 - `js/audio-player.js` - HTML5 Audio component with segment playback
 
-### Flutter App Structure (`flutter_app/dutch_learn_app/lib/`)
+### Mobile App Structure (`mobile/lib/`)
 
 Clean architecture with three layers:
 - `domain/` - Entities, repository interfaces, use cases
@@ -94,7 +119,7 @@ Key files:
 
 ### Data Flow
 
-1. Web app processes audio/video → stores in SQLite + files in `data/`
+1. Desktop web app processes audio/video → stores in SQLite + files in `data/`
 2. Export creates JSON bundle with sentences, keywords, progress
 3. Google Drive sync uploads/downloads between platforms
 4. Mobile app imports JSON + audio files, maintains local SQLite

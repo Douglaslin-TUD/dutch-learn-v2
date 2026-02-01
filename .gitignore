@@ -13,13 +13,11 @@ __pycache__/
 venv/
 gdrive_venv/
 .Python
-build/
 develop-eggs/
 dist/
 downloads/
 eggs/
 .eggs/
-lib/
 lib64/
 parts/
 sdist/
@@ -44,11 +42,11 @@ local.properties
 # APK builds
 *.apk
 
-# Flutter (but keep lib/ for Flutter source code)
-flutter_app/.dart_tool/
-flutter_app/.packages
-flutter_app/build/
-!flutter_app/*/lib/
+# Flutter/Mobile (but keep lib/ for Flutter source code)
+mobile/.dart_tool/
+mobile/.packages
+mobile/build/
+!mobile/lib/
 
 # Export folders
 export_for_drive/
