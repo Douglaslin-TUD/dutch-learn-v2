@@ -16,6 +16,12 @@ class Settings(BaseSettings):
     # OpenAI API Configuration
     openai_api_key: str = ""
 
+    # AssemblyAI API Configuration
+    assemblyai_api_key: str = ""
+
+    # Speaker diarization settings
+    speakers_expected: Optional[int] = None  # None = auto-detect
+
     # Application Configuration
     app_host: str = "0.0.0.0"
     app_port: int = 8000
@@ -59,6 +65,10 @@ class Settings(BaseSettings):
     def validate_openai_key(self) -> bool:
         """Check if OpenAI API key is configured."""
         return bool(self.openai_api_key and self.openai_api_key != "your_openai_api_key_here")
+
+    def validate_assemblyai_key(self) -> bool:
+        """Check if AssemblyAI API key is configured."""
+        return bool(self.assemblyai_api_key and self.assemblyai_api_key != "your_assemblyai_api_key_here")
 
 
 # Global settings instance
