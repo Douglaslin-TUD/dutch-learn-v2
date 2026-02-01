@@ -44,10 +44,11 @@ local.properties
 # APK builds
 *.apk
 
-# Flutter
+# Flutter (but keep lib/ for Flutter source code)
 flutter_app/.dart_tool/
 flutter_app/.packages
 flutter_app/build/
+!flutter_app/*/lib/
 
 # Export folders
 export_for_drive/

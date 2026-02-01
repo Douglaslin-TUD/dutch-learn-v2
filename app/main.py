@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse
 
 from app.config import settings
 from app.database import init_db
-from app.routers import projects_router, audio_router
+from app.routers import projects_router, audio_router, sync_router
 
 
 # Create FastAPI application
@@ -42,6 +42,7 @@ app.add_middleware(
 # Include API routers
 app.include_router(projects_router)
 app.include_router(audio_router)
+app.include_router(sync_router)
 
 
 # Static files directory

@@ -244,6 +244,54 @@ export function getAudioUrl(projectId) {
     return `${API_BASE}/audio/${projectId}`;
 }
 
+/**
+ * Get sync status.
+ *
+ * @returns {Promise<Object>} - Sync status with configured, authenticated, project counts
+ */
+export async function getSyncStatus() {
+    return request('/sync/status');
+}
+
+/**
+ * Upload projects to Google Drive.
+ *
+ * @param {string[]} projectIds - Optional array of project IDs to upload
+ * @returns {Promise<Object>} - Upload results
+ */
+export async function syncUpload(projectIds = null) {
+    return request('/sync/upload', {
+        method: 'POST',
+        body: JSON.stringify({ project_ids: projectIds }),
+    });
+}
+
+/**
+ * Download projects from Google Drive.
+ *
+ * @param {string[]} projectIds - Optional array of project IDs to download
+ * @returns {Promise<Object>} - Download results
+ */
+export async function syncDownload(projectIds = null) {
+    return request('/sync/download', {
+        method: 'POST',
+        body: JSON.stringify({ project_ids: projectIds }),
+    });
+}
+
+/**
+ * Perform full bidirectional sync with Google Drive.
+ *
+ * @param {string[]} projectIds - Optional array of project IDs to sync
+ * @returns {Promise<Object>} - Sync results
+ */
+export async function syncFull(projectIds = null) {
+    return request('/sync/sync', {
+        method: 'POST',
+        body: JSON.stringify({ project_ids: projectIds }),
+    });
+}
+
 // Default export for convenience
 export default {
     getProjects,
@@ -252,5 +300,9 @@ export default {
     uploadProject,
     getProjectStatus,
     getAudioUrl,
+    getSyncStatus,
+    syncUpload,
+    syncDownload,
+    syncFull,
     ApiError,
 };

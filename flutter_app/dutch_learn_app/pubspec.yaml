@@ -53,6 +53,19 @@ dependencies:
   # Desktop database support
   sqflite_common_ffi: ^2.3.0
 
+  # Audio recording and processing
+  record: ^5.0.4
+  ffmpeg_kit_flutter_audio: ^6.0.3
+
+  # Encryption for API key storage
+  encrypt: ^5.0.3
+
+  # Secure storage
+  flutter_secure_storage: ^9.0.0
+
+  # HTTP client for API calls
+  dio: ^5.4.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

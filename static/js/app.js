@@ -4,7 +4,7 @@
  * Handles routing, state management, view rendering, and user interactions.
  */
 
-import { getProjects, getProject, deleteProject, uploadProject, getProjectStatus, getAudioUrl, ApiError } from './api.js';
+import { getProjects, getProject, deleteProject, uploadProject, getProjectStatus, getAudioUrl, syncFull, getSyncStatus, ApiError } from './api.js';
 import { AudioPlayer, PLAYBACK_SPEEDS, formatTime } from './audio-player.js';
 
 // ============================================================================
@@ -374,6 +374,63 @@ function getStatusBadge(status) {
 }
 
 // ============================================================================
+// Sync Functions
+// ============================================================================
+
+/**
+ * Handle sync button click.
+ * Performs full bidirectional sync with Google Drive.
+ */
+async function handleSync() {
+    const syncBtn = document.getElementById('sync-btn');
+    if (!syncBtn) return;
+
+    // Disable button and show loading state
+    syncBtn.disabled = true;
+    syncBtn.innerHTML = `
+        <div class="animate-spin rounded-full h-5 w-5 border-2 border-gray-500 border-t-transparent mr-2"></div>
+        Syncing...
+    `;
+
+    try {
+        // Check sync status first
+        const status = await getSyncStatus();
+
+        if (!status.configured) {
+            showToast('Google Drive not configured. Place credentials.json in the project directory.', 'error');
+            return;
+        }
+
+        // Perform sync
+        const result = await syncFull();
+
+        if (result.success) {
+            showToast(result.message, 'success');
+            // Refresh project list
+            renderHomeView();
+        } else {
+            showToast(result.message, 'error');
+            if (result.errors && result.errors.length > 0) {
+                console.error('Sync errors:', result.errors);
+            }
+        }
+    } catch (error) {
+        showToast(error.message || 'Sync failed', 'error');
+    } finally {
+        // Reset button state
+        if (syncBtn) {
+            syncBtn.disabled = false;
+            syncBtn.innerHTML = `
+                <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                </svg>
+                Sync
+            `;
+        }
+    }
+}
+
+// ============================================================================
 // Views
 // ============================================================================
 
@@ -385,6 +442,12 @@ async function renderHomeView() {
 
     // Update navigation
     getNavActions().innerHTML = `
+        <button id="sync-btn" class="inline-flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors font-medium mr-2" title="Sync with Google Drive">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+            </svg>
+            Sync
+        </button>
         <a href="#/upload" class="inline-flex items-center px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors font-medium shadow-sm">
             <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
@@ -392,6 +455,9 @@ async function renderHomeView() {
             New Project
         </a>
     `;
+
+    // Setup sync button handler
+    document.getElementById('sync-btn').addEventListener('click', handleSync);
 
     // Show loading state
     getMainContent().innerHTML = `
