@@ -44,6 +44,12 @@ class Sentence(Base):
     text = Column(Text, nullable=False)
     start_time = Column(Float, nullable=False)
     end_time = Column(Float, nullable=False)
+    speaker_id = Column(
+        String(36),
+        ForeignKey("speakers.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     translation_en = Column(Text, nullable=True)
     explanation_nl = Column(Text, nullable=True)
     explanation_en = Column(Text, nullable=True)
@@ -56,6 +62,7 @@ class Sentence(Base):
         back_populates="sentence",
         cascade="all, delete-orphan",
     )
+    speaker = relationship("Speaker", back_populates="sentences")
 
     @property
     def duration(self) -> float:
@@ -100,6 +107,8 @@ class Sentence(Base):
             "explanation_en": self.explanation_en,
             "has_explanation": self.has_explanation,
             "created_at": self.created_at.isoformat() if self.created_at else None,
+            "speaker_id": self.speaker_id,
+            "speaker": self.speaker.to_dict() if self.speaker else None,
         }
 
         if include_keywords:
