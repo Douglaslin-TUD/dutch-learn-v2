@@ -5,6 +5,7 @@ Coordinates the entire processing pipeline from file upload to final explanation
 """
 
 import asyncio
+import json
 from pathlib import Path
 from typing import Optional
 import uuid
@@ -13,9 +14,9 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db_context
-from app.models import Project, Sentence, Keyword
+from app.models import Project, Sentence, Keyword, Speaker
 from app.services.audio_extractor import AudioExtractor, AudioExtractionError
-from app.services.transcriber import Transcriber, TranscriptionError
+from app.services.assemblyai_transcriber import AssemblyAITranscriber, TranscriptionError
 from app.services.explainer import Explainer, ExplanationError
 from app.utils.file_utils import is_video_file, get_audio_path, get_upload_path
 
@@ -43,13 +44,13 @@ class Processor:
     def __init__(self):
         """Initialize the processor with all required services."""
         self.audio_extractor = AudioExtractor()
-        self.transcriber: Optional[Transcriber] = None
+        self.transcriber: Optional[AssemblyAITranscriber] = None
         self.explainer: Optional[Explainer] = None
 
     def _init_api_services(self) -> None:
         """Initialize API-dependent services lazily."""
         if self.transcriber is None:
-            self.transcriber = Transcriber()
+            self.transcriber = AssemblyAITranscriber()
         if self.explainer is None:
             self.explainer = Explainer()
 
@@ -122,7 +123,7 @@ class Processor:
         db: Session,
     ) -> None:
         """
-        Transcribe audio and store sentences in database.
+        Transcribe audio with speaker diarization and store results.
 
         Args:
             audio_path: Path to audio file.
@@ -133,28 +134,51 @@ class Processor:
             ProcessingError: If transcription fails.
         """
         try:
-            segments = await self.transcriber.transcribe_with_retry(
+            result = await self.transcriber.transcribe_with_retry(
                 audio_path,
                 language="nl",
                 max_retries=settings.max_retries,
             )
 
-            # Create sentence records
-            for idx, segment in enumerate(segments):
-                sentence = Sentence(
-                    id=str(uuid.uuid4()),
-                    project_id=project.id,
-                    idx=idx,
-                    text=segment["text"],
-                    start_time=segment["start"],
-                    end_time=segment["end"],
-                )
-                db.add(sentence)
+            # Use transaction to ensure consistency
+            try:
+                # Create Speaker records
+                speaker_map = {}  # label -> speaker_id
+                for speaker_info in result.speakers:
+                    speaker = Speaker(
+                        id=str(uuid.uuid4()),
+                        project_id=project.id,
+                        label=speaker_info.label,
+                        display_name=speaker_info.display_name,
+                        confidence=speaker_info.confidence,
+                        evidence=json.dumps(speaker_info.evidence, ensure_ascii=False),
+                        is_manual=False,
+                    )
+                    db.add(speaker)
+                    db.flush()  # Get ID without committing
+                    speaker_map[speaker_info.label] = speaker.id
 
-            # Update project sentence count
-            project.total_sentences = len(segments)
-            project.processed_sentences = 0
-            db.commit()
+                # Create Sentence records
+                for idx, utterance in enumerate(result.utterances):
+                    sentence = Sentence(
+                        id=str(uuid.uuid4()),
+                        project_id=project.id,
+                        idx=idx,
+                        text=utterance.text,
+                        start_time=utterance.start,
+                        end_time=utterance.end,
+                        speaker_id=speaker_map.get(utterance.speaker_label),
+                    )
+                    db.add(sentence)
+
+                # Update project
+                project.total_sentences = len(result.utterances)
+                project.processed_sentences = 0
+                db.commit()
+
+            except Exception as e:
+                db.rollback()
+                raise ProcessingError(f"Failed to save transcription: {str(e)}")
 
         except TranscriptionError as e:
             raise ProcessingError(f"Transcription failed: {str(e)}")
