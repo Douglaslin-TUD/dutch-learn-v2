@@ -54,6 +54,11 @@ class Project(Base):
         cascade="all, delete-orphan",
         order_by="Sentence.idx",
     )
+    speakers = relationship(
+        "Speaker",
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )
 
     __table_args__ = (
         CheckConstraint(
@@ -104,12 +109,13 @@ class Project(Base):
         }
         return descriptions.get(self.status, "Unknown status")
 
-    def to_dict(self, include_sentences: bool = False) -> dict:
+    def to_dict(self, include_sentences: bool = False, include_speakers: bool = False) -> dict:
         """
         Convert project to dictionary representation.
 
         Args:
             include_sentences: Whether to include sentence data.
+            include_speakers: Whether to include speaker data.
 
         Returns:
             dict: Project data as dictionary.
@@ -128,6 +134,9 @@ class Project(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
+
+        if include_speakers:
+            data["speakers"] = [s.to_dict() for s in self.speakers]
 
         if include_sentences:
             data["sentences"] = [s.to_dict() for s in self.sentences]
