@@ -82,6 +82,6 @@ def init_db() -> None:
     This should be called once at application startup.
     """
     # Import models to register them with Base
-    from app.models import project, sentence, keyword
+    from app.models import project, speaker, sentence, keyword
 
     Base.metadata.create_all(bind=engine)
