@@ -6,7 +6,8 @@ transcription, explanation generation, and cloud sync.
 """
 
 from app.services.audio_extractor import AudioExtractor, AudioExtractionError
-from app.services.transcriber import Transcriber, TranscriptionError
+from app.services.transcriber import Transcriber
+from app.services.assemblyai_transcriber import AssemblyAITranscriber, TranscriptionError
 from app.services.explainer import Explainer, ExplanationError
 from app.services.processor import Processor, ProcessingError
 from app.services.sync_service import SyncService, SyncError
@@ -17,6 +18,7 @@ __all__ = [
     "AudioExtractor",
     "AudioExtractionError",
     "Transcriber",
+    "AssemblyAITranscriber",
     "TranscriptionError",
     "Explainer",
     "ExplanationError",
