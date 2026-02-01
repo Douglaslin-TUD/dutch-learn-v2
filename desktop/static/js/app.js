@@ -1075,19 +1075,26 @@ function renderLearnInterface(project) {
         </a>
     `;
 
-    const sentencesList = project.sentences.map((sentence, index) => `
+    const sentencesList = project.sentences.map((sentence, index) => {
+        const speakerName = sentence.speaker?.display_name || `Speaker ${sentence.speaker?.label || '?'}`;
+        const speakerColor = getSpeakerColor(sentence.speaker?.label);
+
+        return `
         <button class="sentence-item w-full text-left px-4 py-3 hover:bg-gray-50 border-b border-gray-100
                        transition-colors ${index === 0 ? 'bg-primary-50 border-l-4 border-l-primary-500' : ''}"
                 data-index="${index}">
             <div class="flex items-start space-x-3">
-                <span class="flex-shrink-0 w-8 h-8 rounded-full bg-gray-100 text-gray-600 text-sm
+                <span class="flex-shrink-0 w-8 h-8 rounded-full ${speakerColor} text-white text-sm
                              flex items-center justify-center font-medium sentence-number">
-                    ${index + 1}
+                    ${sentence.speaker?.label || index + 1}
                 </span>
-                <p class="text-gray-700 text-sm leading-relaxed sentence-text">${escapeHtml(sentence.text)}</p>
+                <div class="flex-1 min-w-0">
+                    <p class="text-xs text-gray-500 mb-1">${escapeHtml(speakerName)}</p>
+                    <p class="text-gray-700 text-sm leading-relaxed sentence-text">${escapeHtml(sentence.text)}</p>
+                </div>
             </div>
         </button>
-    `).join('');
+    `}).join('');
 
     const firstSentence = project.sentences[0];
 
@@ -1161,6 +1168,30 @@ function renderLearnInterface(project) {
                         <h3 class="text-lg font-semibold text-gray-900">${escapeHtml(project.name)}</h3>
                         <p class="text-sm text-gray-500">${project.sentences.length} sentences</p>
                     </div>
+
+                    <!-- Speaker Panel -->
+                    ${(project.speakers && project.speakers.length > 0) ? `
+                    <div class="p-4 border-b border-gray-200 flex-shrink-0">
+                        <h4 class="text-sm font-semibold text-gray-700 mb-3">Speakers</h4>
+                        <div id="speakers-list" class="flex flex-wrap gap-2">
+                            ${project.speakers.map(speaker => `
+                                <div class="speaker-chip flex items-center gap-2 px-3 py-1.5 rounded-full ${getSpeakerColor(speaker.label)} bg-opacity-10 border border-current"
+                                     data-speaker-id="${speaker.id}">
+                                    <span class="w-5 h-5 rounded-full ${getSpeakerColor(speaker.label)} text-white text-xs flex items-center justify-center">
+                                        ${speaker.label}
+                                    </span>
+                                    <input type="text"
+                                           class="speaker-name-input bg-transparent border-none text-sm text-gray-700 w-24 focus:outline-none focus:ring-1 focus:ring-primary-300 rounded"
+                                           value="${escapeHtml(speaker.display_name || `Speaker ${speaker.label}`)}"
+                                           data-speaker-id="${speaker.id}"
+                                           data-original="${escapeHtml(speaker.display_name || '')}">
+                                    ${speaker.is_manual ? '<span class="text-xs text-gray-400">&#10003;</span>' : ''}
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                    ` : ''}
+
                     <div id="sentences-list" class="flex-1 overflow-y-auto">
                         ${sentencesList}
                     </div>
@@ -1487,6 +1518,41 @@ function setupLearnHandlers(project) {
         }
     });
 
+    // Speaker name editing
+    document.querySelectorAll('.speaker-name-input').forEach(input => {
+        input.addEventListener('blur', async (e) => {
+            const speakerId = e.target.dataset.speakerId;
+            const newName = e.target.value.trim();
+            const originalName = e.target.dataset.original;
+
+            if (newName && newName !== originalName) {
+                try {
+                    const response = await fetch(`/api/projects/${project.id}/speakers/${speakerId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ name: newName }),
+                    });
+
+                    if (response.ok) {
+                        e.target.dataset.original = newName;
+                        showToast('Speaker name updated', 'success', 2000);
+                        // Refresh to update sentence list
+                        renderLearnView(project.id);
+                    }
+                } catch (error) {
+                    showToast('Failed to update speaker name', 'error');
+                    e.target.value = originalName;
+                }
+            }
+        });
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.target.blur();
+            }
+        });
+    });
+
     /**
      * Select a sentence by index.
      * @param {number} index
@@ -1658,6 +1724,23 @@ function escapeHtml(str) {
     const div = document.createElement('div');
     div.textContent = str;
     return div.innerHTML;
+}
+
+/**
+ * Get color class for speaker label.
+ * @param {string} label - Speaker label (A, B, C...)
+ * @returns {string} - Tailwind color class
+ */
+function getSpeakerColor(label) {
+    const colors = {
+        'A': 'bg-blue-500',
+        'B': 'bg-green-500',
+        'C': 'bg-purple-500',
+        'D': 'bg-orange-500',
+        'E': 'bg-pink-500',
+        'F': 'bg-teal-500',
+    };
+    return colors[label] || 'bg-gray-500';
 }
 
 // ============================================================================
