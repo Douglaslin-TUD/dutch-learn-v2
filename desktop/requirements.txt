@@ -17,6 +17,9 @@ sqlalchemy>=2.0.0
 # OpenAI API
 openai>=1.3.0
 
+# AssemblyAI API (transcription with speaker diarization)
+assemblyai>=0.23.0
+
 # HTTP Client (for async requests)
 httpx>=0.25.0
 
