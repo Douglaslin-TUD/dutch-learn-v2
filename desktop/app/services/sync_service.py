@@ -312,10 +312,11 @@ class SyncService:
 
     def _export_project(self, project, db) -> dict:
         """Export a project to JSON format."""
-        from app.models import Sentence, Keyword
+        from app.models import Sentence, Keyword, Speaker
 
-        sentences = db.query(Sentence).filter(Sentence.project_id == project.id).order_by(Sentence.order).all()
-        keywords = db.query(Keyword).filter(Keyword.project_id == project.id).all()
+        sentences = db.query(Sentence).filter(Sentence.project_id == project.id).order_by(Sentence.idx).all()
+        keywords = db.query(Keyword).filter(Keyword.sentence_id.in_([s.id for s in sentences])).all()
+        speakers = db.query(Speaker).filter(Speaker.project_id == project.id).all()
 
         return {
             'id': project.id,
@@ -323,15 +324,28 @@ class SyncService:
             'status': project.status,
             'created_at': project.created_at.isoformat() if project.created_at else None,
             'updated_at': project.updated_at.isoformat() if project.updated_at else None,
+            'speakers': [
+                {
+                    'id': sp.id,
+                    'label': sp.label,
+                    'display_name': sp.display_name,
+                    'confidence': sp.confidence,
+                    'evidence': sp.evidence,
+                    'is_manual': sp.is_manual,
+                }
+                for sp in speakers
+            ],
             'sentences': [
                 {
                     'id': s.id,
-                    'order': s.order,
+                    'idx': s.idx,
                     'text': s.text,
                     'start_time': s.start_time,
                     'end_time': s.end_time,
-                    'translation': s.translation,
-                    'explanation': s.explanation,
+                    'translation_en': s.translation_en,
+                    'explanation_nl': s.explanation_nl,
+                    'explanation_en': s.explanation_en,
+                    'speaker_id': s.speaker_id,
                     'learned': getattr(s, 'learned', False),
                     'learn_count': getattr(s, 'learn_count', 0),
                 }
@@ -341,8 +355,8 @@ class SyncService:
                 {
                     'id': k.id,
                     'word': k.word,
-                    'translation': k.translation,
-                    'explanation': k.explanation,
+                    'meaning_nl': k.meaning_nl,
+                    'meaning_en': k.meaning_en,
                     'sentence_id': k.sentence_id,
                 }
                 for k in keywords
@@ -461,7 +475,7 @@ class SyncService:
 
     def _import_project(self, data: dict, db) -> None:
         """Import a project from JSON data into database."""
-        from app.models import Project, Sentence, Keyword
+        from app.models import Project, Sentence, Keyword, Speaker
         from datetime import datetime
 
         project_id = data['id']
@@ -479,6 +493,26 @@ class SyncService:
             project.name = data.get('name', project.name)
             project.status = data.get('status', project.status)
 
+        # Import speakers
+        for sp_data in data.get('speakers', []):
+            speaker = db.query(Speaker).filter(Speaker.id == sp_data['id']).first()
+            if speaker:
+                # Only update if not manually set locally, or if remote is manual
+                if not speaker.is_manual or sp_data.get('is_manual', False):
+                    speaker.display_name = sp_data.get('display_name')
+                    speaker.is_manual = sp_data.get('is_manual', False)
+            else:
+                speaker = Speaker(
+                    id=sp_data['id'],
+                    project_id=project_id,
+                    label=sp_data['label'],
+                    display_name=sp_data.get('display_name'),
+                    confidence=sp_data.get('confidence', 0.0),
+                    evidence=sp_data.get('evidence'),
+                    is_manual=sp_data.get('is_manual', False),
+                )
+                db.add(speaker)
+
         # Update sentences
         for s_data in data.get('sentences', []):
             sentence = db.query(Sentence).filter(Sentence.id == s_data['id']).first()
@@ -492,12 +526,14 @@ class SyncService:
                 sentence = Sentence(
                     id=s_data['id'],
                     project_id=project_id,
-                    order=s_data['order'],
+                    idx=s_data.get('idx', 0),
                     text=s_data['text'],
                     start_time=s_data.get('start_time'),
                     end_time=s_data.get('end_time'),
-                    translation=s_data.get('translation'),
-                    explanation=s_data.get('explanation'),
+                    translation_en=s_data.get('translation_en'),
+                    explanation_nl=s_data.get('explanation_nl'),
+                    explanation_en=s_data.get('explanation_en'),
+                    speaker_id=s_data.get('speaker_id'),
                 )
                 db.add(sentence)
 
@@ -507,11 +543,10 @@ class SyncService:
             if not keyword:
                 keyword = Keyword(
                     id=k_data['id'],
-                    project_id=project_id,
-                    word=k_data['word'],
-                    translation=k_data.get('translation'),
-                    explanation=k_data.get('explanation'),
                     sentence_id=k_data.get('sentence_id'),
+                    word=k_data['word'],
+                    meaning_nl=k_data.get('meaning_nl'),
+                    meaning_en=k_data.get('meaning_en'),
                 )
                 db.add(keyword)
 
