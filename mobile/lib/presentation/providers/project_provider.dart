@@ -97,6 +97,34 @@ class ProjectListNotifier extends StateNotifier<ProjectListState> {
     );
   }
 
+  /// Exports a project as a JSON-compatible map.
+  Future<Map<String, dynamic>?> exportProject(String projectId) async {
+    final result = await _repository.exportProject(projectId);
+    return result.fold(
+      onSuccess: (data) => data,
+      onFailure: (failure) {
+        state = state.copyWith(error: failure.message);
+        return null;
+      },
+    );
+  }
+
+  /// Imports a project, merging if it already exists (by source_id).
+  Future<Project?> importOrMergeProject(Map<String, dynamic> jsonData) async {
+    // Wrap remote data in expected import format if needed
+    final Map<String, dynamic> importData;
+    if (jsonData.containsKey('project') && jsonData.containsKey('sentences')) {
+      importData = jsonData;
+    } else {
+      // Flat format — wrap it
+      importData = {
+        'project': jsonData,
+        'sentences': jsonData['sentences'] ?? [],
+      };
+    }
+    return importProject(importData, null);
+  }
+
   /// Clears any error state.
   void clearError() {
     state = state.copyWith(error: null);
