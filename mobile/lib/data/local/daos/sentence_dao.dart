@@ -119,4 +119,22 @@ class SentenceDao {
     );
     return result.isNotEmpty ? (result.first.values.first as int? ?? 0) : 0;
   }
+
+  /// Updates learning progress for a sentence.
+  Future<int> updateLearningProgress(
+    String id, {
+    required bool learned,
+    required int learnCount,
+  }) async {
+    final db = await _database.database;
+    return db.update(
+      'sentences',
+      {
+        'learned': learned ? 1 : 0,
+        'learn_count': learnCount,
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
 }
