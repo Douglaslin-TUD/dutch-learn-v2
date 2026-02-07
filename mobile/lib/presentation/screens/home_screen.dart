@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:dutch_learn_app/core/constants/app_constants.dart';
 import 'package:dutch_learn_app/presentation/providers/project_provider.dart';
 import 'package:dutch_learn_app/presentation/widgets/project_card.dart';
 
@@ -87,7 +88,7 @@ class HomeScreen extends ConsumerWidget {
           children: [
             Icon(
               Icons.folder_open,
-              size: 80,
+              size: AppConstants.emptyStateIconSize,
               color: theme.colorScheme.outline,
             ),
             const SizedBox(height: 24),

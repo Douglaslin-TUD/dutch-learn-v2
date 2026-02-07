@@ -40,6 +40,13 @@ class AppConstants {
   static const double cardBorderRadius = 12.0;
   static const double buttonBorderRadius = 8.0;
 
+  // UI Sizes
+  static const double emptyStateIconSize = 80.0;
+  static const double dialogMaxWidth = 400.0;
+  static const double playPauseButtonSize = 64.0;
+  static const double progressIndicatorSize = 16.0;
+  static const double signInIconSize = 80.0;
+
   // Animation
   static const Duration shortAnimationDuration = Duration(milliseconds: 200);
   static const Duration mediumAnimationDuration = Duration(milliseconds: 350);

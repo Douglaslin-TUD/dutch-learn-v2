@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import 'package:dutch_learn_app/core/constants/app_constants.dart';
 import 'package:dutch_learn_app/domain/entities/keyword.dart';
 
 /// Popup dialog for showing keyword details.
@@ -19,7 +20,7 @@ class KeywordPopup extends StatelessWidget {
 
     return Dialog(
       child: Container(
-        constraints: const BoxConstraints(maxWidth: 400),
+        constraints: const BoxConstraints(maxWidth: AppConstants.dialogMaxWidth),
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,

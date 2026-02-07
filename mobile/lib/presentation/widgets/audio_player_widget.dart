@@ -210,16 +210,16 @@ class _PlayPauseButton extends StatelessWidget {
 
     if (isLoading) {
       return Container(
-        width: 64,
-        height: 64,
+        width: AppConstants.playPauseButtonSize,
+        height: AppConstants.playPauseButtonSize,
         padding: const EdgeInsets.all(16),
         child: const CircularProgressIndicator(),
       );
     }
 
     return Container(
-      width: 64,
-      height: 64,
+      width: AppConstants.playPauseButtonSize,
+      height: AppConstants.playPauseButtonSize,
       decoration: BoxDecoration(
         color: theme.colorScheme.primary,
         shape: BoxShape.circle,

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
+import 'package:dutch_learn_app/core/constants/app_constants.dart';
 import 'package:dutch_learn_app/domain/entities/drive_file.dart';
 import 'package:dutch_learn_app/presentation/providers/sync_provider.dart';
 
@@ -151,7 +152,7 @@ class _SyncScreenState extends ConsumerState<SyncScreen> {
           children: [
             Icon(
               Icons.cloud,
-              size: 80,
+              size: AppConstants.signInIconSize,
               color: theme.colorScheme.primary,
             ),
             const SizedBox(height: 24),
