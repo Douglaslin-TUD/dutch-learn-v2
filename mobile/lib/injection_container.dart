@@ -10,6 +10,7 @@ import 'package:dutch_learn_app/data/repositories/project_repository_impl.dart';
 import 'package:dutch_learn_app/data/repositories/settings_repository_impl.dart';
 import 'package:dutch_learn_app/data/services/audio_service.dart';
 import 'package:dutch_learn_app/data/services/google_drive_service.dart';
+import 'package:dutch_learn_app/data/services/sync_service.dart';
 import 'package:dutch_learn_app/domain/repositories/google_drive_repository.dart';
 import 'package:dutch_learn_app/domain/repositories/project_repository.dart';
 import 'package:dutch_learn_app/domain/repositories/settings_repository.dart';
@@ -77,4 +78,18 @@ final googleDriveRepositoryProvider = Provider<GoogleDriveRepository>((ref) {
 final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
   final prefs = ref.watch(sharedPreferencesProvider);
   return SettingsRepositoryImpl(prefs: prefs);
+});
+
+/// Provider for SyncService.
+final syncServiceProvider = Provider<SyncService>((ref) {
+  final driveService = ref.watch(googleDriveServiceProvider);
+  final projectDao = ref.watch(projectDaoProvider);
+  final sentenceDao = ref.watch(sentenceDaoProvider);
+  final keywordDao = ref.watch(keywordDaoProvider);
+  return SyncService(
+    driveService: driveService,
+    projectDao: projectDao,
+    sentenceDao: sentenceDao,
+    keywordDao: keywordDao,
+  );
 });
