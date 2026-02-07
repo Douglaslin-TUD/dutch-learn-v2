@@ -1119,5 +1119,131 @@ git commit -m "test: verify speaker diarization integration"
 | 7 | 11 | Dependencies (AssemblyAI SDK) |
 | 8 | 12 | Integration testing |
 
-**Total Tasks:** 12
-**Estimated Commits:** 12
+**Total Tasks:** 14
+**Estimated Commits:** 14
+
+---
+
+## Phase 9: Chrome MCP Validation and Iterative Improvement
+
+### Task 13: Prepare Test Audio
+
+**Files:**
+- Create: Test audio clip from existing data
+
+**Step 1: Create a 3-minute test audio clip**
+
+Extract a segment from existing audio for testing:
+
+```bash
+cd "/home/peng-lin/data/AI  Tools/dutch-learn-v2"
+# Use the smaller existing audio file or extract a segment
+ffmpeg -i data/audio/8da595a6-ff03-4d6c-9609-bf8431ede2cd.mp3 -t 180 -acodec copy data/test_audio_3min.mp3
+```
+
+If the file is already short enough, use it directly.
+
+**Step 2: Verify test audio exists**
+
+```bash
+ls -la data/test_audio_3min.mp3 || ls -la data/audio/8da595a6*.mp3
+```
+
+---
+
+### Task 14: Chrome MCP End-to-End Validation
+
+**Validation Loop Process:**
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    VALIDATION LOOP                          │
+├─────────────────────────────────────────────────────────────┤
+│  1. Start server                                            │
+│  2. Open Chrome via MCP → http://localhost:8000             │
+│  3. Upload test audio                                       │
+│  4. Wait for processing                                     │
+│  5. Verify results:                                         │
+│     - Speakers detected? (check speaker chips)              │
+│     - Sentences displayed with speaker labels?              │
+│     - Can edit speaker names?                               │
+│     - Audio playback works?                                 │
+│  6. If PASS → Done                                          │
+│  7. If FAIL → Analyze error → Fix code → Go to step 1       │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Step 1: Start the server**
+
+```bash
+cd "/home/peng-lin/data/AI  Tools/dutch-learn-v2/desktop"
+source ../venv/bin/activate
+python run.py &
+sleep 5
+```
+
+**Step 2: Use Chrome MCP to validate**
+
+Using mcp__claude-in-chrome tools:
+1. Navigate to http://localhost:8000
+2. Take screenshot to verify home page loads
+3. Click "New Project" or upload button
+4. Upload test audio file
+5. Wait for processing (poll status)
+6. Navigate to project view
+7. Take screenshot to verify:
+   - Speaker labels are shown
+   - Sentences are grouped by speaker
+   - Speaker editing UI is visible
+
+**Step 3: Validation Checklist**
+
+| Check | Expected | Pass/Fail |
+|-------|----------|-----------|
+| Server starts without errors | No exceptions | |
+| Home page loads | Shows project list | |
+| Upload works | File accepted | |
+| Processing completes | Status = "ready" | |
+| Speakers detected | At least 1 speaker shown | |
+| Sentences have speaker labels | Speaker A/B visible | |
+| Speaker name editable | Input field works | |
+| Audio plays correctly | Segment plays on click | |
+
+**Step 4: If validation fails**
+
+1. Capture error from console/logs
+2. Analyze root cause
+3. Fix the code
+4. Restart server
+5. Repeat validation
+
+**Step 5: Document results**
+
+```bash
+git add -A
+git commit -m "test: Chrome MCP validation - [PASS/FAIL with notes]"
+```
+
+---
+
+## Validation Loop Commands Reference
+
+**Start server:**
+```bash
+cd "/home/peng-lin/data/AI  Tools/dutch-learn-v2/desktop" && python run.py
+```
+
+**Check server logs:**
+```bash
+tail -f /tmp/dutch-learn-server.log
+```
+
+**Reset database (if needed):**
+```bash
+rm -f "/home/peng-lin/data/AI  Tools/dutch-learn-v2/data/dutch_learning.db"
+```
+
+**Kill server:**
+```bash
+pkill -f "python run.py"
+```

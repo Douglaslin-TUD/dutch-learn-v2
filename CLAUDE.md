@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Dutch Language Learning Application - enables users to study Dutch from audio/video content by providing interactive transcriptions with AI-powered explanations and vocabulary extraction.
+**HearLoop** - Dutch Language Learning Application - enables users to study Dutch from audio/video content by providing interactive transcriptions with AI-powered explanations and vocabulary extraction.
 
 **Architecture:** Two separate applications sharing data via Google Drive sync:
 - **Desktop (Web App)** - Python FastAPI backend + Vanilla JS frontend (`desktop/`)

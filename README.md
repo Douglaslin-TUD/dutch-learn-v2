@@ -1,4 +1,4 @@
-# Dutch Language Learning Application
+# HearLoop - Dutch Language Learning Application
 
 A learning platform that enables Dutch language learners to study from audio/video content by providing interactive transcriptions with explanations and vocabulary.
 
