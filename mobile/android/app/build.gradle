@@ -42,7 +42,7 @@ android {
 
     defaultConfig {
         applicationId "com.dutchlearn.dutch_learn_app"
-        minSdkVersion flutter.minSdkVersion
+        minSdkVersion 24
         targetSdk 36
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
