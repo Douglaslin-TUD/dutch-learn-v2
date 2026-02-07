@@ -1,25 +1,35 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:path_provider/path_provider.dart';
-
-import 'package:dutch_learn_app/data/local/database.dart';
+import 'package:dutch_learn_app/core/utils/file_utils.dart';
+import 'package:dutch_learn_app/data/local/daos/keyword_dao.dart';
+import 'package:dutch_learn_app/data/local/daos/project_dao.dart';
+import 'package:dutch_learn_app/data/local/daos/sentence_dao.dart';
+import 'package:dutch_learn_app/data/models/keyword_model.dart';
+import 'package:dutch_learn_app/data/models/project_model.dart';
+import 'package:dutch_learn_app/data/models/sentence_model.dart';
 import 'package:dutch_learn_app/data/services/google_drive_service.dart';
-import 'package:dutch_learn_app/domain/entities/project.dart';
+import 'package:uuid/uuid.dart';
 
 /// Service for bidirectional sync between local database and Google Drive.
 class SyncService {
   final GoogleDriveService _driveService;
-  final AppDatabase _database;
+  final ProjectDao _projectDao;
+  final SentenceDao _sentenceDao;
+  final KeywordDao _keywordDao;
+  final _uuid = const Uuid();
 
   SyncService({
     required GoogleDriveService driveService,
-    required AppDatabase database,
+    required ProjectDao projectDao,
+    required SentenceDao sentenceDao,
+    required KeywordDao keywordDao,
   })  : _driveService = driveService,
-        _database = database;
+        _projectDao = projectDao,
+        _sentenceDao = sentenceDao,
+        _keywordDao = keywordDao;
 
   /// Performs full bidirectional sync.
-  /// Returns a summary of sync results.
   Future<SyncResult> performSync({
     void Function(String status, double progress)? onProgress,
   }) async {
@@ -28,7 +38,6 @@ class SyncService {
     try {
       onProgress?.call('Uploading local changes...', 0.1);
 
-      // Upload local projects
       final uploadResult = await uploadLocalProjects(
         onProgress: (p) => onProgress?.call('Uploading...', 0.1 + p * 0.4),
       );
@@ -37,7 +46,6 @@ class SyncService {
 
       onProgress?.call('Downloading remote changes...', 0.5);
 
-      // Download remote projects
       final downloadResult = await downloadRemoteProjects(
         onProgress: (p) => onProgress?.call('Downloading...', 0.5 + p * 0.4),
       );
@@ -62,9 +70,7 @@ class SyncService {
     final result = UploadResult();
 
     try {
-      // Get projects from local database
-      final projectDao = _database.projectDao;
-      final projects = await projectDao.getAllProjects();
+      final projects = await _projectDao.getAll();
 
       final filteredProjects = projectIds != null
           ? projects.where((p) => projectIds.contains(p.id)).toList()
@@ -74,15 +80,12 @@ class SyncService {
         final project = filteredProjects[i];
 
         try {
-          // Export project to JSON
-          final exportData = await _exportProject(project.id);
+          final exportData = await exportProject(project.id);
           final jsonContent = jsonEncode(exportData);
 
-          // Get audio file path
-          final appDir = await getApplicationDocumentsDirectory();
-          final audioFile = File('${appDir.path}/audio/${project.id}.mp3');
+          final audioDir = await FileUtils.getAudioDirectoryPath();
+          final audioFile = File(FileUtils.joinPath(audioDir, '${project.id}.mp3'));
 
-          // Upload to Drive
           await _driveService.uploadProject(
             projectId: project.id,
             jsonContent: jsonContent,
@@ -111,10 +114,8 @@ class SyncService {
     final result = DownloadResult();
 
     try {
-      // Get Dutch Learn folder
       final dutchLearnFolderId = await _driveService.getOrCreateDutchLearnFolder();
 
-      // List project folders
       final projectFolders = await _driveService.listFiles(
         folderId: dutchLearnFolderId,
         mimeType: 'application/vnd.google-apps.folder',
@@ -130,10 +131,8 @@ class SyncService {
         final folderId = folder['id'] as String;
 
         try {
-          // List files in project folder
           final files = await _driveService.listFiles(folderId: folderId);
 
-          // Find project.json
           final jsonFile = files.firstWhere(
             (f) => f['name'] == 'project.json',
             orElse: () => <String, dynamic>{},
@@ -147,23 +146,19 @@ class SyncService {
             continue;
           }
 
-          // Download project.json
           final jsonBytes = await _driveService.downloadFile(jsonFile['id'] as String);
           final jsonString = utf8.decode(jsonBytes);
           final remoteData = jsonDecode(jsonString) as Map<String, dynamic>;
 
-          // Check if project exists locally
-          final localProject = await _database.projectDao.getProjectById(projectId);
+          final localProject = await _projectDao.getBySourceId(projectId);
 
           if (localProject != null) {
-            // Merge progress
-            final localData = await _exportProject(projectId);
+            final localData = await exportProject(localProject.id);
             final mergedData = ProgressMerger.merge(localData, remoteData);
-            await _importProject(mergedData);
+            await _importMergedProgress(localProject.id, mergedData);
             result.merged.add(projectId);
           } else {
-            // New project - import entirely
-            await _importProject(remoteData);
+            await _importNewProject(projectId, remoteData);
 
             // Download audio if available
             final audioFile = files.firstWhere(
@@ -173,12 +168,12 @@ class SyncService {
 
             if (audioFile.isNotEmpty) {
               final audioBytes = await _driveService.downloadFile(audioFile['id'] as String);
-              final appDir = await getApplicationDocumentsDirectory();
-              final audioDir = Directory('${appDir.path}/audio');
-              if (!audioDir.existsSync()) {
-                audioDir.createSync(recursive: true);
+              final audioDir = await FileUtils.getAudioDirectoryPath();
+              final dir = Directory(audioDir);
+              if (!dir.existsSync()) {
+                dir.createSync(recursive: true);
               }
-              final audioPath = File('${audioDir.path}/$projectId.mp3');
+              final audioPath = File(FileUtils.joinPath(audioDir, '$projectId.mp3'));
               await audioPath.writeAsBytes(audioBytes);
             }
 
@@ -200,96 +195,138 @@ class SyncService {
   }
 
   /// Exports a project to a map for JSON serialization.
-  Future<Map<String, dynamic>> _exportProject(String projectId) async {
-    final project = await _database.projectDao.getProjectById(projectId);
+  Future<Map<String, dynamic>> exportProject(String projectId) async {
+    final project = await _projectDao.getById(projectId);
     if (project == null) {
       throw Exception('Project not found: $projectId');
     }
 
-    final sentences = await _database.sentenceDao.getSentencesByProjectId(projectId);
-    final keywords = await _database.keywordDao.getKeywordsByProjectId(projectId);
+    final sentences = await _sentenceDao.getByProjectId(projectId);
+    final keywordMap = await _keywordDao.getBySentenceIds(
+      sentences.map((s) => s.id).toList(),
+    );
 
     return {
-      'id': project.id,
-      'name': project.name,
-      'status': project.status,
-      'created_at': project.createdAt?.toIso8601String(),
-      'updated_at': project.updatedAt?.toIso8601String(),
-      'sentences': sentences.map((s) => {
-        'id': s.id,
-        'order': s.order,
-        'text': s.text,
-        'start_time': s.startTime,
-        'end_time': s.endTime,
-        'translation': s.translation,
-        'explanation': s.explanation,
-        'learned': s.learned,
-        'learn_count': s.learnCount,
-      }).toList(),
-      'keywords': keywords.map((k) => {
-        'id': k.id,
-        'word': k.word,
-        'translation': k.translation,
-        'explanation': k.explanation,
-        'sentence_id': k.sentenceId,
-      }).toList(),
-      'progress': {
-        'total_sentences': sentences.length,
-        'learned_sentences': sentences.where((s) => s.learned).length,
-        'last_sync': DateTime.now().toUtc().toIso8601String(),
+      'version': '1.0',
+      'exported_at': DateTime.now().toUtc().toIso8601String(),
+      'project': {
+        'id': project.id,
+        'name': project.name,
+        'total_sentences': project.totalSentences,
       },
+      'sentences': sentences.map((s) {
+        final keywords = keywordMap[s.id] ?? [];
+        return {
+          'id': s.id,
+          'index': s.index,
+          'text': s.text,
+          'start_time': s.startTime,
+          'end_time': s.endTime,
+          'translation_en': s.translationEn,
+          'explanation_nl': s.explanationNl,
+          'explanation_en': s.explanationEn,
+          'learned': s.learned,
+          'learn_count': s.learnCount,
+          'keywords': keywords.map((k) => {
+            'word': k.word,
+            'meaning_nl': k.meaningNl,
+            'meaning_en': k.meaningEn,
+          }).toList(),
+        };
+      }).toList(),
     };
   }
 
-  /// Imports a project from a map.
-  Future<void> _importProject(Map<String, dynamic> data) async {
-    final projectId = data['id'] as String;
+  /// Imports a completely new project from remote data.
+  Future<void> _importNewProject(
+    String sourceId,
+    Map<String, dynamic> data,
+  ) async {
+    // Handle both wrapped {project, sentences} and flat format
+    final Map<String, dynamic> projectData;
+    final List<dynamic> sentencesList;
 
-    // Create or update project
-    final existingProject = await _database.projectDao.getProjectById(projectId);
-
-    if (existingProject == null) {
-      // Create new project
-      final project = Project(
-        id: projectId,
-        name: data['name'] as String? ?? projectId,
-        status: data['status'] as String? ?? 'completed',
-        createdAt: data['created_at'] != null
-            ? DateTime.parse(data['created_at'] as String)
-            : DateTime.now(),
-        updatedAt: DateTime.now(),
-        sentenceCount: 0,
-      );
-      await _database.projectDao.insertProject(project);
+    if (data.containsKey('project') && data.containsKey('sentences')) {
+      projectData = data['project'] as Map<String, dynamic>;
+      sentencesList = data['sentences'] as List<dynamic>;
+    } else {
+      projectData = data;
+      sentencesList = data['sentences'] as List<dynamic>? ?? [];
     }
 
-    // Update sentences
-    final sentences = data['sentences'] as List<dynamic>? ?? [];
-    for (final sData in sentences) {
-      final sentenceId = sData['id'] as String;
-      final existingSentence = await _database.sentenceDao.getSentenceById(sentenceId);
+    final projectId = _uuid.v4();
 
-      if (existingSentence != null) {
-        // Update learning progress
-        await _database.sentenceDao.updateLearningProgress(
-          sentenceId,
-          learned: sData['learned'] as bool? ?? existingSentence.learned,
-          learnCount: sData['learn_count'] as int? ?? existingSentence.learnCount,
-        );
-      } else {
-        // Insert new sentence
-        await _database.sentenceDao.insertSentenceFromMap(projectId, sData as Map<String, dynamic>);
+    final project = ProjectModel(
+      id: projectId,
+      sourceId: sourceId,
+      name: projectData['name'] as String? ?? sourceId,
+      totalSentences: sentencesList.length,
+      audioPath: null,
+      importedAt: DateTime.now(),
+    );
+    await _projectDao.insert(project);
+
+    final sentenceModels = <SentenceModel>[];
+    final keywordModels = <KeywordModel>[];
+
+    for (final sData in sentencesList) {
+      final sMap = sData as Map<String, dynamic>;
+      final sentenceId = _uuid.v4();
+
+      sentenceModels.add(SentenceModel(
+        id: sentenceId,
+        projectId: projectId,
+        index: sMap['index'] as int? ?? sMap['order'] as int? ?? sentenceModels.length,
+        text: sMap['text'] as String? ?? '',
+        startTime: (sMap['start_time'] as num?)?.toDouble() ?? 0.0,
+        endTime: (sMap['end_time'] as num?)?.toDouble() ?? 0.0,
+        translationEn: sMap['translation_en'] as String?,
+        explanationNl: sMap['explanation_nl'] as String?,
+        explanationEn: sMap['explanation_en'] as String?,
+        learned: sMap['learned'] as bool? ?? false,
+        learnCount: sMap['learn_count'] as int? ?? 0,
+      ));
+
+      final keywords = sMap['keywords'] as List<dynamic>?;
+      if (keywords != null) {
+        for (final kData in keywords) {
+          final kMap = kData as Map<String, dynamic>;
+          keywordModels.add(KeywordModel(
+            id: _uuid.v4(),
+            sentenceId: sentenceId,
+            word: kMap['word'] as String? ?? '',
+            meaningNl: kMap['meaning_nl'] as String? ?? '',
+            meaningEn: kMap['meaning_en'] as String? ?? '',
+          ));
+        }
       }
     }
 
-    // Update keywords (keywords don't have learning progress)
-    final keywords = data['keywords'] as List<dynamic>? ?? [];
-    for (final kData in keywords) {
-      final keywordId = kData['id'] as String;
-      final existingKeyword = await _database.keywordDao.getKeywordById(keywordId);
+    await _sentenceDao.insertBatch(sentenceModels);
+    await _keywordDao.insertBatch(keywordModels);
+  }
 
-      if (existingKeyword == null) {
-        await _database.keywordDao.insertKeywordFromMap(projectId, kData as Map<String, dynamic>);
+  /// Merges learning progress into an existing local project.
+  Future<void> _importMergedProgress(
+    String localProjectId,
+    Map<String, dynamic> mergedData,
+  ) async {
+    final sentencesList = mergedData['sentences'] as List<dynamic>? ?? [];
+    final localSentences = await _sentenceDao.getByProjectId(localProjectId);
+    final localById = {for (var s in localSentences) s.id: s};
+
+    for (final sData in sentencesList) {
+      final sMap = sData as Map<String, dynamic>;
+      final sentenceId = sMap['id'] as String?;
+      if (sentenceId == null) continue;
+
+      final localSentence = localById[sentenceId];
+      if (localSentence != null) {
+        await _sentenceDao.updateLearningProgress(
+          sentenceId,
+          learned: sMap['learned'] as bool? ?? localSentence.learned,
+          learnCount: sMap['learn_count'] as int? ?? localSentence.learnCount,
+        );
       }
     }
   }
@@ -298,14 +335,13 @@ class SyncService {
 /// Merges learning progress from local and remote data.
 class ProgressMerger {
   /// Merges local and remote project data.
-  /// Uses max strategy for learning progress.
+  /// Strategy: learned = OR, learn_count = max.
   static Map<String, dynamic> merge(
     Map<String, dynamic> local,
     Map<String, dynamic> remote,
   ) {
     final merged = Map<String, dynamic>.from(local);
 
-    // Merge sentences
     final localSentences = (local['sentences'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
     final remoteSentences = (remote['sentences'] as List<dynamic>? ?? [])
@@ -322,7 +358,6 @@ class ProgressMerger {
       final remoteS = remoteById[id];
 
       if (localS != null && remoteS != null) {
-        // Merge: use max values for learning progress
         final mergedS = Map<String, dynamic>.from(localS);
         mergedS['learned'] = (localS['learned'] as bool? ?? false) ||
             (remoteS['learned'] as bool? ?? false);
@@ -336,19 +371,10 @@ class ProgressMerger {
       }
     }
 
-    // Sort by order
     mergedSentences.sort((a, b) =>
-        (a['order'] as int? ?? 0).compareTo(b['order'] as int? ?? 0));
+        (a['index'] as int? ?? 0).compareTo(b['index'] as int? ?? 0));
 
     merged['sentences'] = mergedSentences;
-
-    // Recalculate progress
-    merged['progress'] = {
-      'total_sentences': mergedSentences.length,
-      'learned_sentences':
-          mergedSentences.where((s) => s['learned'] == true).length,
-      'last_sync': DateTime.now().toUtc().toIso8601String(),
-    };
 
     return merged;
   }
