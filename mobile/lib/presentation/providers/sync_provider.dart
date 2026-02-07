@@ -440,7 +440,8 @@ class SyncNotifier extends StateNotifier<SyncState> {
 
   /// Uploads local projects to Google Drive.
   Future<void> _uploadLocalProjects() async {
-    final projects = _ref.read(projectListProvider);
+    final projectState = _ref.read(projectListProvider);
+    final projects = projectState.projects;
     if (projects.isEmpty) return;
 
     for (var i = 0; i < projects.length; i++) {
@@ -452,25 +453,28 @@ class SyncNotifier extends StateNotifier<SyncState> {
       );
 
       try {
-        // Export project data
         final projectNotifier = _ref.read(projectListProvider.notifier);
         final exportData = await projectNotifier.exportProject(project.id);
         if (exportData == null) continue;
 
         final jsonContent = json.encode(exportData);
 
-        // Upload to Drive
-        final driveService = _driveRepository.driveService;
         final audioDir = await FileUtils.getAudioDirectoryPath();
         final audioFile = File(FileUtils.joinPath(audioDir, '${project.id}.mp3'));
 
-        await driveService.uploadProject(
+        final uploadResult = await _driveRepository.uploadProject(
           projectId: project.id,
           jsonContent: jsonContent,
           audioFile: audioFile.existsSync() ? audioFile : null,
         );
+
+        uploadResult.fold(
+          onSuccess: (_) {},
+          onFailure: (failure) {
+            debugPrint('Failed to upload project ${project.id}: ${failure.message}');
+          },
+        );
       } catch (e) {
-        // Log error but continue with other projects
         debugPrint('Failed to upload project ${project.id}: $e');
       }
     }
@@ -479,71 +483,67 @@ class SyncNotifier extends StateNotifier<SyncState> {
   /// Downloads and merges remote projects from Google Drive.
   Future<void> _downloadAndMergeProjects() async {
     try {
-      final driveService = _driveRepository.driveService;
-
-      // Get Dutch Learn folder
-      final dutchLearnFolderId = await driveService.getOrCreateDutchLearnFolder();
-
-      // List project folders
-      final projectFolders = await driveService.listFiles(
-        folderId: dutchLearnFolderId,
-        mimeType: 'application/vnd.google-apps.folder',
+      final folderResult = await _driveRepository.getOrCreateDutchLearnFolder();
+      final dutchLearnFolderId = folderResult.fold(
+        onSuccess: (id) => id,
+        onFailure: (failure) => throw Exception(failure.message),
       );
+
+      final foldersResult = await _driveRepository.listFiles(folderId: dutchLearnFolderId);
+      final allFiles = foldersResult.fold(
+        onSuccess: (files) => files,
+        onFailure: (failure) => throw Exception(failure.message),
+      );
+
+      // Filter to folders only
+      final projectFolders = allFiles.where((f) => f.isFolder).toList();
 
       for (var i = 0; i < projectFolders.length; i++) {
         final folder = projectFolders[i];
-        final projectId = folder['name'] as String;
-        final folderId = folder['id'] as String;
 
         state = state.copyWith(
-          syncStatus: 'Processing: $projectId',
+          syncStatus: 'Processing: ${folder.name}',
           syncProgress: 0.5 + (i / projectFolders.length) * 0.45,
         );
 
         try {
-          // List files in project folder
-          final files = await driveService.listFiles(folderId: folderId);
-
-          // Find project.json
-          final jsonFile = files.firstWhere(
-            (f) => f['name'] == 'project.json',
-            orElse: () => <String, dynamic>{},
+          final filesResult = await _driveRepository.listFiles(folderId: folder.id);
+          final files = filesResult.fold(
+            onSuccess: (f) => f,
+            onFailure: (failure) => throw Exception(failure.message),
           );
 
-          if (jsonFile.isEmpty) continue;
+          // Find project.json
+          final jsonFiles = files.where((f) => f.name == 'project.json').toList();
+          if (jsonFiles.isEmpty) continue;
 
           // Download project.json
-          final jsonBytes = await driveService.downloadFile(jsonFile['id'] as String);
-          final jsonString = String.fromCharCodes(jsonBytes);
-          final remoteData = json.decode(jsonString) as Map<String, dynamic>;
+          final jsonResult = await _driveRepository.downloadJson(jsonFiles.first.id);
+          final remoteData = jsonResult.fold(
+            onSuccess: (data) => data,
+            onFailure: (failure) => throw Exception(failure.message),
+          );
 
           // Import or merge project
           final projectNotifier = _ref.read(projectListProvider.notifier);
           await projectNotifier.importOrMergeProject(remoteData);
 
           // Download audio if needed
-          final audioFile = files.firstWhere(
-            (f) => f['name'] == 'audio.mp3',
-            orElse: () => <String, dynamic>{},
-          );
-
-          if (audioFile.isNotEmpty) {
+          final audioFiles = files.where((f) => f.name == 'audio.mp3').toList();
+          if (audioFiles.isNotEmpty) {
             final audioDir = await FileUtils.getAudioDirectoryPath();
-            final audioPath = FileUtils.joinPath(audioDir, '$projectId.mp3');
-
-            // Only download if doesn't exist locally
-            if (!File(audioPath).existsSync()) {
-              final audioBytes = await driveService.downloadFile(audioFile['id'] as String);
-              await File(audioPath).writeAsBytes(audioBytes);
+            final audioPath = FileUtils.joinPath(audioDir, '${folder.name}.mp3');
+            final audioLocalFile = File(audioPath);
+            if (!audioLocalFile.existsSync()) {
+              await _driveRepository.downloadFileToPath(audioFiles.first.id, audioPath);
             }
           }
         } catch (e) {
-          debugPrint('Failed to process project $projectId: $e');
+          debugPrint('Failed to process remote project ${folder.name}: $e');
         }
       }
     } catch (e) {
-      debugPrint('Failed to download projects: $e');
-      rethrow;
+      debugPrint('Failed to download remote projects: $e');
     }
   }
 
