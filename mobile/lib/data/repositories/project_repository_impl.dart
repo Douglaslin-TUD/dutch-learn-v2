@@ -367,4 +367,53 @@ class ProjectRepositoryImpl implements ProjectRepository {
       ));
     }
   }
+
+  @override
+  Future<Result<Map<String, dynamic>>> exportProject(String projectId) async {
+    try {
+      final project = await _projectDao.getById(projectId);
+      if (project == null) {
+        return const Result.failure(NotFoundFailure(message: 'Project not found'));
+      }
+
+      final sentences = await _sentenceDao.getByProjectId(projectId);
+      final keywordMap = await _keywordDao.getBySentenceIds(
+        sentences.map((s) => s.id).toList(),
+      );
+
+      return Result.success({
+        'version': '1.0',
+        'exported_at': DateTime.now().toUtc().toIso8601String(),
+        'project': {
+          'id': project.id,
+          'name': project.name,
+          'total_sentences': project.totalSentences,
+        },
+        'sentences': sentences.map((s) {
+          final keywords = keywordMap[s.id] ?? [];
+          return {
+            'id': s.id,
+            'index': s.index,
+            'text': s.text,
+            'start_time': s.startTime,
+            'end_time': s.endTime,
+            'translation_en': s.translationEn,
+            'explanation_nl': s.explanationNl,
+            'explanation_en': s.explanationEn,
+            'learned': s.learned,
+            'learn_count': s.learnCount,
+            'keywords': keywords.map((k) => {
+              'word': k.word,
+              'meaning_nl': k.meaningNl,
+              'meaning_en': k.meaningEn,
+            }).toList(),
+          };
+        }).toList(),
+      });
+    } on Exception catch (e) {
+      return Result.failure(DatabaseFailure(
+        message: 'Failed to export project: ${e.toString()}',
+      ));
+    }
+  }
 }

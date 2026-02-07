@@ -64,4 +64,7 @@ abstract class ProjectRepository {
     String projectId,
     double positionSeconds,
   );
+
+  /// Exports a project with all sentences and keywords as a JSON-compatible map.
+  Future<Result<Map<String, dynamic>>> exportProject(String projectId);
 }
