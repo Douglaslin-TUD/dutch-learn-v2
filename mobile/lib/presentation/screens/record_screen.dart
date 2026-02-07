@@ -479,7 +479,29 @@ class _RecordScreenState extends ConsumerState<RecordScreen> {
 
       // Import the project
       final projectNotifier = ref.read(projectListProvider.notifier);
-      await projectNotifier.importProcessedProject(project);
+      final projectJson = project.toJson();
+      final importData = {
+        'project': {
+          'id': projectJson['id'],
+          'name': projectJson['name'],
+          'total_sentences': project.sentences.length,
+        },
+        'sentences': project.sentences.map((s) => {
+          'index': s.order,
+          'text': s.text,
+          'start_time': s.startTime,
+          'end_time': s.endTime,
+          'translation_en': s.translationEn,
+          'explanation_nl': s.explanationNl,
+          'explanation_en': s.explanationEn,
+          'keywords': s.keywords.map((k) => {
+            'word': k.word,
+            'meaning_nl': k.meaningNl,
+            'meaning_en': k.meaningEn,
+          }).toList(),
+        }).toList(),
+      };
+      await projectNotifier.importProject(importData, project.audioFile.path);
 
       setState(() {
         _isProcessing = false;
