@@ -123,4 +123,17 @@ class KeywordDao {
     );
     return results.map((map) => KeywordModel.fromMap(map)).toList();
   }
+
+  /// Gets all keywords for a project (via sentence JOIN).
+  Future<List<KeywordModel>> getByProjectId(String projectId) async {
+    final db = await _database.database;
+    final results = await db.rawQuery(
+      'SELECT k.* FROM keywords k '
+      'INNER JOIN sentences s ON k.sentence_id = s.id '
+      'WHERE s.project_id = ? '
+      'ORDER BY s.idx ASC',
+      [projectId],
+    );
+    return results.map((map) => KeywordModel.fromMap(map)).toList();
+  }
 }
