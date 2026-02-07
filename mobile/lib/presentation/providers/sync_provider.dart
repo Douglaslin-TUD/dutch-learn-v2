@@ -106,6 +106,12 @@ class SyncNotifier extends StateNotifier<SyncState> {
     checkSignInStatus();
   }
 
+  @override
+  void dispose() {
+    // Cancel any pending operations
+    super.dispose();
+  }
+
   /// Returns true if running on desktop platform.
   bool get _isDesktop =>
       !kIsWeb && (Platform.isLinux || Platform.isWindows || Platform.isMacOS);
