@@ -61,6 +61,8 @@ class AppDatabase {
         translation_en TEXT,
         explanation_nl TEXT,
         explanation_en TEXT,
+        learned INTEGER NOT NULL DEFAULT 0,
+        learn_count INTEGER NOT NULL DEFAULT 0,
         FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
       )
     ''');
@@ -97,11 +99,10 @@ class AppDatabase {
     int oldVersion,
     int newVersion,
   ) async {
-    // Handle migrations here
-    // Example:
-    // if (oldVersion < 2) {
-    //   await db.execute('ALTER TABLE projects ADD COLUMN new_column TEXT');
-    // }
+    if (oldVersion < 2) {
+      await db.execute('ALTER TABLE sentences ADD COLUMN learned INTEGER NOT NULL DEFAULT 0');
+      await db.execute('ALTER TABLE sentences ADD COLUMN learn_count INTEGER NOT NULL DEFAULT 0');
+    }
   }
 
   /// Closes the database connection.

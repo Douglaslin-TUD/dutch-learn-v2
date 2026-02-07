@@ -11,7 +11,7 @@ class AppConstants {
 
   // Database
   static const String databaseName = 'dutch_learn.db';
-  static const int databaseVersion = 1;
+  static const int databaseVersion = 2;
 
   // Audio Settings
   static const double defaultPlaybackSpeed = 1.0;
