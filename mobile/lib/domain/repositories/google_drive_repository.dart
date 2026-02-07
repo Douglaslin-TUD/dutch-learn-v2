@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:dutch_learn_app/core/utils/result.dart';
 import 'package:dutch_learn_app/domain/entities/drive_file.dart';
 
@@ -53,4 +55,14 @@ abstract class GoogleDriveRepository {
     String localPath,
     void Function(double progress) onProgress,
   );
+
+  /// Gets or creates the Dutch Learn folder in Drive.
+  Future<Result<String>> getOrCreateDutchLearnFolder();
+
+  /// Uploads a project to Google Drive.
+  Future<Result<void>> uploadProject({
+    required String projectId,
+    required String jsonContent,
+    File? audioFile,
+  });
 }

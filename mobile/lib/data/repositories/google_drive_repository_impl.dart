@@ -212,4 +212,36 @@ class GoogleDriveRepositoryImpl implements GoogleDriveRepository {
       ));
     }
   }
+
+  @override
+  Future<Result<String>> getOrCreateDutchLearnFolder() async {
+    try {
+      final folderId = await _driveService.getOrCreateDutchLearnFolder();
+      return Result.success(folderId);
+    } on Exception catch (e) {
+      return Result.failure(GoogleDriveFailure(
+        message: 'Failed to get Dutch Learn folder: ${e.toString()}',
+      ));
+    }
+  }
+
+  @override
+  Future<Result<void>> uploadProject({
+    required String projectId,
+    required String jsonContent,
+    File? audioFile,
+  }) async {
+    try {
+      await _driveService.uploadProject(
+        projectId: projectId,
+        jsonContent: jsonContent,
+        audioFile: audioFile,
+      );
+      return const Result.success(null);
+    } on Exception catch (e) {
+      return Result.failure(GoogleDriveFailure(
+        message: 'Failed to upload project: ${e.toString()}',
+      ));
+    }
+  }
 }
