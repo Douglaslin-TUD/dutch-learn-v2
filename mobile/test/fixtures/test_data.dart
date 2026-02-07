@@ -54,6 +54,8 @@ class TestData {
     String? translationEn = 'Hello, how are you?',
     String? explanationNl,
     String? explanationEn,
+    bool learned = false,
+    int learnCount = 0,
     List<Keyword>? keywords,
   }) {
     return Sentence(
@@ -66,6 +68,8 @@ class TestData {
       translationEn: translationEn,
       explanationNl: explanationNl,
       explanationEn: explanationEn,
+      learned: learned,
+      learnCount: learnCount,
       keywords: keywords ?? [],
     );
   }

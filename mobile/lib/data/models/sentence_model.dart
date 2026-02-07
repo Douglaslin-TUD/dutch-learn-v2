@@ -14,6 +14,8 @@ class SentenceModel extends Sentence {
     super.translationEn,
     super.explanationNl,
     super.explanationEn,
+    super.learned = false,
+    super.learnCount = 0,
     super.keywords = const [],
   });
 
@@ -31,6 +33,8 @@ class SentenceModel extends Sentence {
       translationEn: map['translation_en'] as String?,
       explanationNl: map['explanation_nl'] as String?,
       explanationEn: map['explanation_en'] as String?,
+      learned: (map['learned'] as int? ?? 0) == 1,
+      learnCount: map['learn_count'] as int? ?? 0,
       keywords: const [],
     );
   }
@@ -51,6 +55,8 @@ class SentenceModel extends Sentence {
       translationEn: json['translation_en'] as String?,
       explanationNl: json['explanation_nl'] as String?,
       explanationEn: json['explanation_en'] as String?,
+      learned: json['learned'] as bool? ?? false,
+      learnCount: json['learn_count'] as int? ?? 0,
       keywords: const [],
     );
   }
@@ -67,6 +73,8 @@ class SentenceModel extends Sentence {
       translationEn: sentence.translationEn,
       explanationNl: sentence.explanationNl,
       explanationEn: sentence.explanationEn,
+      learned: sentence.learned,
+      learnCount: sentence.learnCount,
       keywords: sentence.keywords,
     );
   }
@@ -85,6 +93,8 @@ class SentenceModel extends Sentence {
       'translation_en': translationEn,
       'explanation_nl': explanationNl,
       'explanation_en': explanationEn,
+      'learned': learned ? 1 : 0,
+      'learn_count': learnCount,
     };
   }
 
@@ -100,6 +110,8 @@ class SentenceModel extends Sentence {
       'translation_en': translationEn,
       'explanation_nl': explanationNl,
       'explanation_en': explanationEn,
+      'learned': learned,
+      'learn_count': learnCount,
       'keywords': keywords.map((k) => KeywordModel.fromEntity(k).toJson()).toList(),
     };
   }
@@ -116,6 +128,8 @@ class SentenceModel extends Sentence {
       translationEn: translationEn,
       explanationNl: explanationNl,
       explanationEn: explanationEn,
+      learned: learned,
+      learnCount: learnCount,
       keywords: keywords,
     );
   }
@@ -132,6 +146,8 @@ class SentenceModel extends Sentence {
       translationEn: translationEn,
       explanationNl: explanationNl,
       explanationEn: explanationEn,
+      learned: learned,
+      learnCount: learnCount,
       keywords: keywords,
     );
   }
@@ -147,6 +163,8 @@ class SentenceModel extends Sentence {
     String? translationEn,
     String? explanationNl,
     String? explanationEn,
+    bool? learned,
+    int? learnCount,
     List<Keyword>? keywords,
   }) {
     return SentenceModel(
@@ -159,6 +177,8 @@ class SentenceModel extends Sentence {
       translationEn: translationEn ?? this.translationEn,
       explanationNl: explanationNl ?? this.explanationNl,
       explanationEn: explanationEn ?? this.explanationEn,
+      learned: learned ?? this.learned,
+      learnCount: learnCount ?? this.learnCount,
       keywords: keywords ?? this.keywords,
     );
   }

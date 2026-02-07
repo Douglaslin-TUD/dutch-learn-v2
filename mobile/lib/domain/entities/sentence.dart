@@ -35,6 +35,12 @@ class Sentence {
   /// Explanation in English.
   final String? explanationEn;
 
+  /// Whether this sentence has been learned.
+  final bool learned;
+
+  /// Number of times this sentence has been studied.
+  final int learnCount;
+
   /// List of keywords/vocabulary in this sentence.
   final List<Keyword> keywords;
 
@@ -49,6 +55,8 @@ class Sentence {
     this.translationEn,
     this.explanationNl,
     this.explanationEn,
+    this.learned = false,
+    this.learnCount = 0,
     this.keywords = const [],
   });
 
@@ -63,6 +71,8 @@ class Sentence {
     String? translationEn,
     String? explanationNl,
     String? explanationEn,
+    bool? learned,
+    int? learnCount,
     List<Keyword>? keywords,
   }) {
     return Sentence(
@@ -75,6 +85,8 @@ class Sentence {
       translationEn: translationEn ?? this.translationEn,
       explanationNl: explanationNl ?? this.explanationNl,
       explanationEn: explanationEn ?? this.explanationEn,
+      learned: learned ?? this.learned,
+      learnCount: learnCount ?? this.learnCount,
       keywords: keywords ?? this.keywords,
     );
   }
