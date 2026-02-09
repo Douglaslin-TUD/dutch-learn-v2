@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 import 'package:dutch_learn_app/core/extensions/duration_extension.dart';
+import 'package:dutch_learn_app/core/utils/speaker_colors.dart';
 import 'package:dutch_learn_app/domain/entities/sentence.dart';
+import 'package:dutch_learn_app/domain/entities/speaker.dart';
 
 /// Card widget for displaying a sentence in the list.
 class SentenceCard extends StatelessWidget {
@@ -9,6 +11,8 @@ class SentenceCard extends StatelessWidget {
   final bool isSelected;
   final bool isPlaying;
   final VoidCallback onTap;
+  final Speaker? speaker;
+  final VoidCallback? onBookmarkTap;
 
   const SentenceCard({
     super.key,
@@ -16,6 +20,8 @@ class SentenceCard extends StatelessWidget {
     required this.isSelected,
     required this.isPlaying,
     required this.onTap,
+    this.speaker,
+    this.onBookmarkTap,
   });
 
   @override
@@ -36,23 +42,27 @@ class SentenceCard extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              // Sentence number
+              // Sentence number / speaker indicator
               Container(
                 width: 32,
                 height: 32,
                 decoration: BoxDecoration(
-                  color: isSelected
-                      ? theme.colorScheme.primary
-                      : theme.colorScheme.surfaceContainerHighest,
+                  color: speaker != null
+                      ? getSpeakerColor(speaker!.label)
+                      : isSelected
+                          ? theme.colorScheme.primary
+                          : theme.colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(16),
                 ),
                 alignment: Alignment.center,
                 child: Text(
-                  '${sentence.displayNumber}',
+                  speaker != null
+                      ? speaker!.label
+                      : '${sentence.displayNumber}',
                   style: theme.textTheme.bodySmall?.copyWith(
                     fontWeight: FontWeight.bold,
-                    color: isSelected
-                        ? theme.colorScheme.onPrimary
+                    color: (speaker != null || isSelected)
+                        ? Colors.white
                         : theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
@@ -118,6 +128,23 @@ class SentenceCard extends StatelessWidget {
                   Icons.play_arrow,
                   color: Colors.green,
                 ),
+              // Bookmark icon
+              if (onBookmarkTap != null)
+                GestureDetector(
+                  onTap: onBookmarkTap,
+                  child: Padding(
+                    padding: const EdgeInsets.only(left: 4),
+                    child: Icon(
+                      sentence.isDifficult
+                          ? Icons.bookmark
+                          : Icons.bookmark_border,
+                      color: sentence.isDifficult
+                          ? Colors.amber
+                          : theme.colorScheme.outline,
+                      size: 20,
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
@@ -132,6 +159,8 @@ class SentenceListItem extends StatelessWidget {
   final bool isSelected;
   final bool isPlaying;
   final VoidCallback onTap;
+  final Speaker? speaker;
+  final VoidCallback? onBookmarkTap;
 
   const SentenceListItem({
     super.key,
@@ -139,6 +168,8 @@ class SentenceListItem extends StatelessWidget {
     required this.isSelected,
     required this.isPlaying,
     required this.onTap,
+    this.speaker,
+    this.onBookmarkTap,
   });
 
   @override
@@ -153,20 +184,22 @@ class SentenceListItem extends StatelessWidget {
         width: 28,
         height: 28,
         decoration: BoxDecoration(
-          color: isSelected
-              ? theme.colorScheme.primary
-              : isPlaying
-                  ? theme.colorScheme.secondary
-                  : theme.colorScheme.surfaceContainerHighest,
+          color: speaker != null
+              ? getSpeakerColor(speaker!.label)
+              : isSelected
+                  ? theme.colorScheme.primary
+                  : isPlaying
+                      ? theme.colorScheme.secondary
+                      : theme.colorScheme.surfaceContainerHighest,
           borderRadius: BorderRadius.circular(14),
         ),
         alignment: Alignment.center,
         child: Text(
-          '${sentence.displayNumber}',
+          speaker != null ? speaker!.label : '${sentence.displayNumber}',
           style: theme.textTheme.bodySmall?.copyWith(
             fontWeight: FontWeight.bold,
-            color: (isSelected || isPlaying)
-                ? theme.colorScheme.onPrimary
+            color: (speaker != null || isSelected || isPlaying)
+                ? Colors.white
                 : theme.colorScheme.onSurfaceVariant,
           ),
         ),
@@ -185,9 +218,29 @@ class SentenceListItem extends StatelessWidget {
           color: theme.colorScheme.outline,
         ),
       ),
-      trailing: isPlaying
-          ? const Icon(Icons.volume_up, color: Colors.green, size: 20)
-          : null,
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (isPlaying)
+            const Icon(Icons.volume_up, color: Colors.green, size: 20),
+          if (onBookmarkTap != null)
+            GestureDetector(
+              onTap: onBookmarkTap,
+              child: Padding(
+                padding: const EdgeInsets.only(left: 4),
+                child: Icon(
+                  sentence.isDifficult
+                      ? Icons.bookmark
+                      : Icons.bookmark_border,
+                  color: sentence.isDifficult
+                      ? Colors.amber
+                      : theme.colorScheme.outline,
+                  size: 20,
+                ),
+              ),
+            ),
+        ],
+      ),
       onTap: onTap,
     );
   }
