@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:dutch_learn_app/core/utils/result.dart';
 import 'package:dutch_learn_app/domain/entities/project.dart';
 import 'package:dutch_learn_app/data/local/daos/speaker_dao.dart';
 import 'package:dutch_learn_app/domain/entities/sentence.dart';

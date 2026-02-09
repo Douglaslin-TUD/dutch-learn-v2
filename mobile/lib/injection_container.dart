@@ -67,11 +67,13 @@ final projectRepositoryProvider = Provider<ProjectRepository>((ref) {
   final projectDao = ref.watch(projectDaoProvider);
   final sentenceDao = ref.watch(sentenceDaoProvider);
   final keywordDao = ref.watch(keywordDaoProvider);
+  final speakerDao = ref.watch(speakerDaoProvider);
 
   return ProjectRepositoryImpl(
     projectDao: projectDao,
     sentenceDao: sentenceDao,
     keywordDao: keywordDao,
+    speakerDao: speakerDao,
   );
 });
 

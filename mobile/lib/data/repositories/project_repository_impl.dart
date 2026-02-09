@@ -8,6 +8,7 @@ import 'package:dutch_learn_app/core/utils/result.dart';
 import 'package:dutch_learn_app/data/local/daos/keyword_dao.dart';
 import 'package:dutch_learn_app/data/local/daos/project_dao.dart';
 import 'package:dutch_learn_app/data/local/daos/sentence_dao.dart';
+import 'package:dutch_learn_app/data/local/daos/speaker_dao.dart';
 import 'package:dutch_learn_app/data/models/keyword_model.dart';
 import 'package:dutch_learn_app/data/models/project_model.dart';
 import 'package:dutch_learn_app/data/models/sentence_model.dart';
@@ -20,16 +21,19 @@ class ProjectRepositoryImpl implements ProjectRepository {
   final ProjectDao _projectDao;
   final SentenceDao _sentenceDao;
   final KeywordDao _keywordDao;
+  final SpeakerDao _speakerDao;
   final Uuid _uuid;
 
   ProjectRepositoryImpl({
     required ProjectDao projectDao,
     required SentenceDao sentenceDao,
     required KeywordDao keywordDao,
+    required SpeakerDao speakerDao,
     Uuid? uuid,
   })  : _projectDao = projectDao,
         _sentenceDao = sentenceDao,
         _keywordDao = keywordDao,
+        _speakerDao = speakerDao,
         _uuid = uuid ?? const Uuid();
 
   @override
@@ -388,6 +392,7 @@ class ProjectRepositoryImpl implements ProjectRepository {
       final keywordMap = await _keywordDao.getBySentenceIds(
         sentences.map((s) => s.id).toList(),
       );
+      final speakers = await _speakerDao.getByProjectId(projectId);
 
       return Result.success({
         'version': '1.0',
@@ -397,6 +402,7 @@ class ProjectRepositoryImpl implements ProjectRepository {
           'name': project.name,
           'total_sentences': project.totalSentences,
         },
+        'speakers': speakers.map((sp) => sp.toJson()).toList(),
         'sentences': sentences.map((s) {
           final keywords = keywordMap[s.id] ?? [];
           return {
@@ -410,6 +416,10 @@ class ProjectRepositoryImpl implements ProjectRepository {
             'explanation_en': s.explanationEn,
             'learned': s.learned,
             'learn_count': s.learnCount,
+            'speaker_id': s.speakerId,
+            'is_difficult': s.isDifficult,
+            'review_count': s.reviewCount,
+            'last_reviewed': s.lastReviewed?.toIso8601String(),
             'keywords': keywords.map((k) => {
               'word': k.word,
               'meaning_nl': k.meaningNl,
