@@ -1092,6 +1092,12 @@ function renderLearnInterface(project) {
                     <p class="text-xs text-gray-500 mb-1">${escapeHtml(speakerName)}</p>
                     <p class="text-gray-700 text-sm leading-relaxed sentence-text">${escapeHtml(sentence.text)}</p>
                 </div>
+                <span class="bookmark-btn flex-shrink-0 p-1 rounded hover:bg-gray-200 transition-colors ${sentence.is_difficult ? 'text-amber-500' : 'text-gray-300'}"
+                      data-sentence-id="${sentence.id}" data-index="${index}">
+                    <svg class="w-4 h-4" fill="${sentence.is_difficult ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path>
+                    </svg>
+                </span>
             </div>
         </button>
     `}).join('');
@@ -1165,8 +1171,20 @@ function renderLearnInterface(project) {
                 <!-- Left Panel - Sentence List -->
                 <div class="w-1/2 bg-white rounded-xl shadow-sm border border-gray-200 flex flex-col">
                     <div class="p-4 border-b border-gray-200 flex-shrink-0">
-                        <h3 class="text-lg font-semibold text-gray-900">${escapeHtml(project.name)}</h3>
-                        <p class="text-sm text-gray-500">${project.sentences.length} sentences</p>
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-lg font-semibold text-gray-900">${escapeHtml(project.name)}</h3>
+                                <p class="text-sm text-gray-500">${project.sentences.length} sentences</p>
+                            </div>
+                            <a href="#/project/${project.id}/review"
+                               class="inline-flex items-center px-3 py-1.5 text-sm font-medium text-amber-700 bg-amber-50 hover:bg-amber-100 rounded-lg transition-colors border border-amber-200"
+                               title="Review difficult sentences">
+                                <svg class="w-4 h-4 mr-1.5" fill="currentColor" viewBox="0 0 24 24">
+                                    <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path>
+                                </svg>
+                                Review
+                            </a>
+                        </div>
                     </div>
 
                     <!-- Speaker Panel -->
@@ -1509,8 +1527,27 @@ function setupLearnHandlers(project) {
         });
     });
 
-    // Sentence list click handler
-    sentencesList.addEventListener('click', (e) => {
+    // Bookmark click handler
+    sentencesList.addEventListener('click', async (e) => {
+        const bookmarkBtn = e.target.closest('.bookmark-btn');
+        if (bookmarkBtn) {
+            e.stopPropagation();
+            const sentenceId = bookmarkBtn.dataset.sentenceId;
+            const idx = parseInt(bookmarkBtn.dataset.index, 10);
+            try {
+                const result = await toggleDifficult(project.id, sentenceId);
+                project.sentences[idx].is_difficult = result.is_difficult;
+                const svg = bookmarkBtn.querySelector('svg');
+                bookmarkBtn.classList.toggle('text-amber-500', result.is_difficult);
+                bookmarkBtn.classList.toggle('text-gray-300', !result.is_difficult);
+                svg.setAttribute('fill', result.is_difficult ? 'currentColor' : 'none');
+            } catch (err) {
+                showToast('Failed to toggle bookmark', 'error');
+            }
+            return;
+        }
+
+        // Sentence list click handler
         const sentenceItem = e.target.closest('.sentence-item');
         if (sentenceItem) {
             const index = parseInt(sentenceItem.dataset.index, 10);
@@ -1744,6 +1781,285 @@ function getSpeakerColor(label) {
 }
 
 // ============================================================================
+// Review Mode
+// ============================================================================
+
+/**
+ * Render the review view for difficult sentences.
+ */
+async function renderReviewView(projectId) {
+    // Clean up previous view
+    if (window._learnViewCleanup) {
+        window._learnViewCleanup();
+        window._learnViewCleanup = null;
+    }
+
+    showLoading('Loading difficult sentences...');
+
+    try {
+        const [project, difficultData] = await Promise.all([
+            getProject(projectId),
+            getDifficultSentences(projectId),
+        ]);
+
+        hideLoading();
+
+        const sentences = difficultData.sentences;
+        if (!sentences || sentences.length === 0) {
+            getNavActions().innerHTML = `
+                <a href="#/project/${projectId}" class="inline-flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors font-medium">
+                    <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+                    </svg>
+                    Back to Project
+                </a>
+            `;
+            getMainContent().innerHTML = `
+                <div class="flex flex-col items-center justify-center h-[calc(100vh-12rem)]">
+                    <svg class="w-16 h-16 text-gray-300 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path>
+                    </svg>
+                    <h2 class="text-xl font-semibold text-gray-600 mb-2">No difficult sentences</h2>
+                    <p class="text-gray-500 mb-6">Bookmark sentences with the bookmark icon to review them here.</p>
+                    <a href="#/project/${projectId}" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">Back to Project</a>
+                </div>
+            `;
+            return;
+        }
+
+        renderReviewInterface(project, sentences);
+        setupReviewHandlers(project, sentences);
+
+    } catch (error) {
+        hideLoading();
+        showToast('Failed to load review: ' + error.message, 'error');
+        Router.navigate(`/project/${projectId}`);
+    }
+}
+
+/**
+ * Render the review interface.
+ */
+function renderReviewInterface(project, sentences) {
+    getNavActions().innerHTML = `
+        <a href="#/project/${project.id}" class="inline-flex items-center px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors font-medium">
+            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+            </svg>
+            Back to Project
+        </a>
+    `;
+
+    getMainContent().innerHTML = `
+        <div class="flex flex-col items-center h-[calc(100vh-10rem)]">
+            <!-- Progress -->
+            <div class="w-full max-w-2xl mb-6">
+                <div class="flex items-center justify-between mb-2">
+                    <h2 class="text-lg font-semibold text-gray-900">Review Mode</h2>
+                    <span id="review-progress" class="text-sm text-gray-500">1 / ${sentences.length}</span>
+                </div>
+                <div class="w-full h-2 bg-gray-200 rounded-full">
+                    <div id="review-progress-bar" class="h-full bg-amber-500 rounded-full transition-all" style="width: ${100 / sentences.length}%"></div>
+                </div>
+            </div>
+
+            <!-- Card -->
+            <div id="review-card" class="w-full max-w-2xl flex-1 bg-white rounded-xl shadow-lg border border-gray-200 flex flex-col overflow-hidden">
+                <!-- Audio controls -->
+                <div class="p-4 border-b border-gray-200 flex items-center space-x-4">
+                    <button id="review-play-btn" class="w-12 h-12 rounded-full bg-primary-600 text-white hover:bg-primary-700 transition-colors flex items-center justify-center shadow-md">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </button>
+                    <div class="flex-1">
+                        <p class="text-sm text-gray-500">Listen and try to understand</p>
+                    </div>
+                    <audio id="review-audio" preload="auto"></audio>
+                </div>
+
+                <!-- Content area -->
+                <div id="review-content" class="flex-1 flex items-center justify-center p-8 cursor-pointer" title="Click to reveal">
+                    <div id="review-overlay" class="text-center">
+                        <svg class="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                        </svg>
+                        <p class="text-gray-400 text-lg">Tap to reveal</p>
+                    </div>
+                    <div id="review-text" class="hidden w-full space-y-4"></div>
+                </div>
+
+                <!-- Navigation -->
+                <div class="p-4 border-t border-gray-200 flex justify-between">
+                    <button id="review-prev" class="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg transition-colors" disabled>Previous</button>
+                    <button id="review-next" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">Next</button>
+                </div>
+            </div>
+        </div>
+    `;
+}
+
+/**
+ * Set up event handlers for review mode.
+ */
+function setupReviewHandlers(project, sentences) {
+    const audioElement = document.getElementById('review-audio');
+    const playBtn = document.getElementById('review-play-btn');
+    const content = document.getElementById('review-content');
+    const overlay = document.getElementById('review-overlay');
+    const textDiv = document.getElementById('review-text');
+    const prevBtn = document.getElementById('review-prev');
+    const nextBtn = document.getElementById('review-next');
+    const progressEl = document.getElementById('review-progress');
+    const progressBar = document.getElementById('review-progress-bar');
+
+    const player = new AudioPlayer(audioElement);
+    const audioUrl = getAudioUrl(project.id);
+    player.load(audioUrl);
+
+    let currentIndex = 0;
+    let revealed = false;
+    let autoRevealTimer = null;
+
+    function showSentence(index) {
+        currentIndex = index;
+        revealed = false;
+        const sentence = sentences[index];
+
+        // Update progress
+        progressEl.textContent = `${index + 1} / ${sentences.length}`;
+        progressBar.style.width = `${((index + 1) / sentences.length) * 100}%`;
+
+        // Reset content
+        overlay.classList.remove('hidden');
+        textDiv.classList.add('hidden');
+
+        // Update navigation
+        prevBtn.disabled = index === 0;
+        nextBtn.textContent = index === sentences.length - 1 ? 'Finish' : 'Next';
+
+        // Play audio segment
+        player.playSegment(sentence.start_time, sentence.end_time);
+
+        // Start auto-reveal timer
+        clearTimeout(autoRevealTimer);
+        autoRevealTimer = setTimeout(() => {
+            if (!revealed) revealText();
+        }, 5000);
+    }
+
+    function revealText() {
+        if (revealed) return;
+        revealed = true;
+        clearTimeout(autoRevealTimer);
+
+        const sentence = sentences[currentIndex];
+        overlay.classList.add('hidden');
+        textDiv.classList.remove('hidden');
+
+        const speakerName = sentence.speaker?.display_name || `Speaker ${sentence.speaker?.label || '?'}`;
+        textDiv.innerHTML = `
+            <div class="bg-primary-50 rounded-lg p-4 border border-primary-100">
+                <p class="text-xs text-gray-500 mb-1">${escapeHtml(speakerName)}</p>
+                <p class="text-lg text-primary-900 font-medium leading-relaxed">${escapeHtml(sentence.text)}</p>
+            </div>
+            ${sentence.translation_en ? `
+            <div class="bg-green-50 rounded-lg p-4 border border-green-100">
+                <p class="text-gray-800 leading-relaxed">${escapeHtml(sentence.translation_en)}</p>
+            </div>
+            ` : ''}
+            ${sentence.explanation_en ? `
+            <div class="bg-blue-50 rounded-lg p-3 border border-blue-100">
+                <p class="text-sm text-gray-700">${escapeHtml(sentence.explanation_en)}</p>
+            </div>
+            ` : ''}
+        `;
+
+        // Record review
+        recordReview(project.id, sentence.id).catch(() => {});
+    }
+
+    // Play button
+    playBtn.addEventListener('click', () => {
+        const sentence = sentences[currentIndex];
+        player.playSegment(sentence.start_time, sentence.end_time);
+    });
+
+    // Click to reveal
+    content.addEventListener('click', () => {
+        if (!revealed) revealText();
+    });
+
+    // Navigation
+    nextBtn.addEventListener('click', () => {
+        if (currentIndex < sentences.length - 1) {
+            showSentence(currentIndex + 1);
+        } else {
+            // Show completion summary
+            getMainContent().innerHTML = `
+                <div class="flex flex-col items-center justify-center h-[calc(100vh-12rem)]">
+                    <svg class="w-16 h-16 text-amber-500 mb-4" fill="currentColor" viewBox="0 0 24 24">
+                        <path d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path>
+                    </svg>
+                    <h2 class="text-xl font-semibold text-gray-900 mb-2">Review Complete!</h2>
+                    <p class="text-gray-500 mb-6">You reviewed ${sentences.length} difficult sentence${sentences.length > 1 ? 's' : ''}.</p>
+                    <div class="flex space-x-4">
+                        <a href="#/project/${project.id}/review" class="px-4 py-2 bg-amber-500 text-white rounded-lg hover:bg-amber-600 transition-colors">Review Again</a>
+                        <a href="#/project/${project.id}" class="px-4 py-2 bg-primary-600 text-white rounded-lg hover:bg-primary-700 transition-colors">Back to Project</a>
+                    </div>
+                </div>
+            `;
+            player.destroy();
+        }
+    });
+
+    prevBtn.addEventListener('click', () => {
+        if (currentIndex > 0) {
+            showSentence(currentIndex - 1);
+        }
+    });
+
+    // Keyboard shortcuts
+    function handleReviewKeyboard(e) {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        switch (e.code) {
+            case 'Space':
+                e.preventDefault();
+                if (!revealed) {
+                    revealText();
+                } else {
+                    const sentence = sentences[currentIndex];
+                    player.playSegment(sentence.start_time, sentence.end_time);
+                }
+                break;
+            case 'ArrowRight':
+            case 'Enter':
+                e.preventDefault();
+                nextBtn.click();
+                break;
+            case 'ArrowLeft':
+                e.preventDefault();
+                prevBtn.click();
+                break;
+        }
+    }
+
+    document.addEventListener('keydown', handleReviewKeyboard);
+
+    // Start with first sentence
+    showSentence(0);
+
+    // Cleanup
+    window._learnViewCleanup = () => {
+        document.removeEventListener('keydown', handleReviewKeyboard);
+        clearTimeout(autoRevealTimer);
+        player.destroy();
+    };
+}
+
+// ============================================================================
 // Application Initialization
 // ============================================================================
 
@@ -1757,6 +2073,7 @@ async function init() {
     // Register routes
     Router.register('/', renderHomeView);
     Router.register('/upload', renderUploadView);
+    Router.register('/project/:id/review', renderReviewView);
     Router.register('/project/:id', renderLearnView);
 
     // Clean up previous view handlers when navigating
