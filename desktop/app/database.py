@@ -85,3 +85,34 @@ def init_db() -> None:
     from app.models import project, speaker, sentence, keyword
 
     Base.metadata.create_all(bind=engine)
+    migrate_db()
+
+
+def migrate_db() -> None:
+    """Add columns to existing databases that create_all won't add."""
+    import sqlite3
+    from pathlib import Path
+
+    db_path = settings.database_url.replace("sqlite:///", "")
+    if not Path(db_path).exists():
+        return
+
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+    cursor.execute("PRAGMA table_info(sentences)")
+    existing = {row[1] for row in cursor.fetchall()}
+
+    migrations = [
+        ("learned", "ALTER TABLE sentences ADD COLUMN learned BOOLEAN NOT NULL DEFAULT 0"),
+        ("learn_count", "ALTER TABLE sentences ADD COLUMN learn_count INTEGER NOT NULL DEFAULT 0"),
+        ("is_difficult", "ALTER TABLE sentences ADD COLUMN is_difficult BOOLEAN NOT NULL DEFAULT 0"),
+        ("review_count", "ALTER TABLE sentences ADD COLUMN review_count INTEGER NOT NULL DEFAULT 0"),
+        ("last_reviewed", "ALTER TABLE sentences ADD COLUMN last_reviewed DATETIME"),
+    ]
+
+    for col_name, sql in migrations:
+        if col_name not in existing:
+            cursor.execute(sql)
+
+    conn.commit()
+    conn.close()

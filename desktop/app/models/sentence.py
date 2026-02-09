@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import List, Optional
 import uuid
 
-from sqlalchemy import Column, String, Integer, Float, Text, DateTime, ForeignKey
+from sqlalchemy import Column, String, Integer, Float, Text, DateTime, ForeignKey, Boolean
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -54,6 +54,11 @@ class Sentence(Base):
     explanation_nl = Column(Text, nullable=True)
     explanation_en = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+    learned = Column(Boolean, default=False, nullable=False, server_default="0")
+    learn_count = Column(Integer, default=0, nullable=False, server_default="0")
+    is_difficult = Column(Boolean, default=False, nullable=False, server_default="0")
+    review_count = Column(Integer, default=0, nullable=False, server_default="0")
+    last_reviewed = Column(DateTime, nullable=True)
 
     # Relationships
     project = relationship("Project", back_populates="sentences")
@@ -109,6 +114,11 @@ class Sentence(Base):
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "speaker_id": self.speaker_id,
             "speaker": self.speaker.to_dict() if self.speaker else None,
+            "learned": self.learned or False,
+            "learn_count": self.learn_count or 0,
+            "is_difficult": self.is_difficult or False,
+            "review_count": self.review_count or 0,
+            "last_reviewed": self.last_reviewed.isoformat() if self.last_reviewed else None,
         }
 
         if include_keywords:
