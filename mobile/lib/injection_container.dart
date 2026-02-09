@@ -93,10 +93,12 @@ final syncServiceProvider = Provider<SyncService>((ref) {
   final projectDao = ref.watch(projectDaoProvider);
   final sentenceDao = ref.watch(sentenceDaoProvider);
   final keywordDao = ref.watch(keywordDaoProvider);
+  final speakerDao = ref.watch(speakerDaoProvider);
   return SyncService(
     driveService: driveService,
     projectDao: projectDao,
     sentenceDao: sentenceDao,
     keywordDao: keywordDao,
+    speakerDao: speakerDao,
   );
 });

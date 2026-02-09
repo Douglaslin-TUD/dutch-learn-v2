@@ -268,6 +268,14 @@ class ProjectRepositoryImpl implements ProjectRepository {
           translationEn: sentenceMap['translation_en'] as String?,
           explanationNl: sentenceMap['explanation_nl'] as String?,
           explanationEn: sentenceMap['explanation_en'] as String?,
+          learned: sentenceMap['learned'] as bool? ?? false,
+          learnCount: sentenceMap['learn_count'] as int? ?? 0,
+          speakerId: sentenceMap['speaker_id'] as String?,
+          isDifficult: sentenceMap['is_difficult'] as bool? ?? false,
+          reviewCount: sentenceMap['review_count'] as int? ?? 0,
+          lastReviewed: sentenceMap['last_reviewed'] != null
+              ? DateTime.tryParse(sentenceMap['last_reviewed'] as String)
+              : null,
         );
         sentenceModels.add(sentence);
 

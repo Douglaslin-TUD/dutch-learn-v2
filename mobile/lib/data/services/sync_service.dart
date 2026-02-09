@@ -5,9 +5,11 @@ import 'package:dutch_learn_app/core/utils/file_utils.dart';
 import 'package:dutch_learn_app/data/local/daos/keyword_dao.dart';
 import 'package:dutch_learn_app/data/local/daos/project_dao.dart';
 import 'package:dutch_learn_app/data/local/daos/sentence_dao.dart';
+import 'package:dutch_learn_app/data/local/daos/speaker_dao.dart';
 import 'package:dutch_learn_app/data/models/keyword_model.dart';
 import 'package:dutch_learn_app/data/models/project_model.dart';
 import 'package:dutch_learn_app/data/models/sentence_model.dart';
+import 'package:dutch_learn_app/data/models/speaker_model.dart';
 import 'package:dutch_learn_app/data/services/google_drive_service.dart';
 import 'package:uuid/uuid.dart';
 
@@ -17,6 +19,7 @@ class SyncService {
   final ProjectDao _projectDao;
   final SentenceDao _sentenceDao;
   final KeywordDao _keywordDao;
+  final SpeakerDao _speakerDao;
   final _uuid = const Uuid();
 
   SyncService({
@@ -24,10 +27,12 @@ class SyncService {
     required ProjectDao projectDao,
     required SentenceDao sentenceDao,
     required KeywordDao keywordDao,
+    required SpeakerDao speakerDao,
   })  : _driveService = driveService,
         _projectDao = projectDao,
         _sentenceDao = sentenceDao,
-        _keywordDao = keywordDao;
+        _keywordDao = keywordDao,
+        _speakerDao = speakerDao;
 
   /// Performs full bidirectional sync.
   Future<SyncResult> performSync({
@@ -205,6 +210,7 @@ class SyncService {
     final keywordMap = await _keywordDao.getBySentenceIds(
       sentences.map((s) => s.id).toList(),
     );
+    final speakers = await _speakerDao.getByProjectId(projectId);
 
     return {
       'version': '1.0',
@@ -214,6 +220,7 @@ class SyncService {
         'name': project.name,
         'total_sentences': project.totalSentences,
       },
+      'speakers': speakers.map((sp) => sp.toJson()).toList(),
       'sentences': sentences.map((s) {
         final keywords = keywordMap[s.id] ?? [];
         return {
@@ -227,6 +234,10 @@ class SyncService {
           'explanation_en': s.explanationEn,
           'learned': s.learned,
           'learn_count': s.learnCount,
+          'speaker_id': s.speakerId,
+          'is_difficult': s.isDifficult,
+          'review_count': s.reviewCount,
+          'last_reviewed': s.lastReviewed?.toIso8601String(),
           'keywords': keywords.map((k) => {
             'word': k.word,
             'meaning_nl': k.meaningNl,
@@ -266,12 +277,45 @@ class SyncService {
     );
     await _projectDao.insert(project);
 
+    // Import speakers
+    final speakersList = data['speakers'] as List<dynamic>? ?? [];
+    final speakerModels = <SpeakerModel>[];
+    final speakerIdMap = <String, String>{}; // remote ID -> local ID
+
+    for (final spData in speakersList) {
+      final spMap = spData as Map<String, dynamic>;
+      final localSpeakerId = _uuid.v4();
+      final remoteId = spMap['id'] as String? ?? '';
+      if (remoteId.isNotEmpty) {
+        speakerIdMap[remoteId] = localSpeakerId;
+      }
+      speakerModels.add(SpeakerModel(
+        id: localSpeakerId,
+        projectId: projectId,
+        label: spMap['label'] as String? ?? '',
+        displayName: spMap['display_name'] as String?,
+        confidence: (spMap['confidence'] as num?)?.toDouble() ?? 0.0,
+        evidence: spMap['evidence'] as String?,
+        isManual: spMap['is_manual'] as bool? ?? false,
+      ));
+    }
+    if (speakerModels.isNotEmpty) {
+      await _speakerDao.insertBatch(speakerModels);
+    }
+
+    // Import sentences
     final sentenceModels = <SentenceModel>[];
     final keywordModels = <KeywordModel>[];
 
     for (final sData in sentencesList) {
       final sMap = sData as Map<String, dynamic>;
       final sentenceId = _uuid.v4();
+
+      // Map remote speaker ID to local speaker ID
+      final remoteSpeakerId = sMap['speaker_id'] as String?;
+      final localSpeakerId = remoteSpeakerId != null
+          ? speakerIdMap[remoteSpeakerId]
+          : null;
 
       sentenceModels.add(SentenceModel(
         id: sentenceId,
@@ -285,6 +329,12 @@ class SyncService {
         explanationEn: sMap['explanation_en'] as String?,
         learned: sMap['learned'] as bool? ?? false,
         learnCount: sMap['learn_count'] as int? ?? 0,
+        speakerId: localSpeakerId,
+        isDifficult: sMap['is_difficult'] as bool? ?? false,
+        reviewCount: sMap['review_count'] as int? ?? 0,
+        lastReviewed: sMap['last_reviewed'] != null
+            ? DateTime.tryParse(sMap['last_reviewed'] as String)
+            : null,
       ));
 
       final keywords = sMap['keywords'] as List<dynamic>?;
@@ -327,6 +377,14 @@ class SyncService {
           learned: sMap['learned'] as bool? ?? localSentence.learned,
           learnCount: sMap['learn_count'] as int? ?? localSentence.learnCount,
         );
+        await _sentenceDao.updateReviewProgress(
+          sentenceId,
+          isDifficult: sMap['is_difficult'] as bool? ?? localSentence.isDifficult,
+          reviewCount: sMap['review_count'] as int? ?? localSentence.reviewCount,
+          lastReviewed: sMap['last_reviewed'] != null
+              ? DateTime.tryParse(sMap['last_reviewed'] as String)
+              : localSentence.lastReviewed,
+        );
       }
     }
   }
@@ -365,6 +423,23 @@ class ProgressMerger {
           localS['learn_count'] as int? ?? 0,
           remoteS['learn_count'] as int? ?? 0,
         );
+        mergedS['is_difficult'] = (localS['is_difficult'] as bool? ?? false) ||
+            (remoteS['is_difficult'] as bool? ?? false);
+        mergedS['review_count'] = _max(
+          localS['review_count'] as int? ?? 0,
+          remoteS['review_count'] as int? ?? 0,
+        );
+        final localLR = localS['last_reviewed'] as String?;
+        final remoteLR = remoteS['last_reviewed'] as String?;
+        if (localLR != null && remoteLR != null) {
+          final localDt = DateTime.tryParse(localLR);
+          final remoteDt = DateTime.tryParse(remoteLR);
+          mergedS['last_reviewed'] = (localDt != null && remoteDt != null && localDt.isAfter(remoteDt))
+              ? localLR
+              : remoteLR;
+        } else {
+          mergedS['last_reviewed'] = localLR ?? remoteLR;
+        }
         mergedSentences.add(mergedS);
       } else {
         mergedSentences.add(localS ?? remoteS!);
