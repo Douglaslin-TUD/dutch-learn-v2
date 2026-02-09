@@ -2,7 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:dutch_learn_app/core/utils/result.dart';
 import 'package:dutch_learn_app/domain/entities/project.dart';
+import 'package:dutch_learn_app/data/local/daos/speaker_dao.dart';
 import 'package:dutch_learn_app/domain/entities/sentence.dart';
+import 'package:dutch_learn_app/domain/entities/speaker.dart';
 import 'package:dutch_learn_app/domain/repositories/project_repository.dart';
 import 'package:dutch_learn_app/injection_container.dart';
 
@@ -142,12 +144,14 @@ final projectListProvider =
 class ProjectDetailState {
   final Project? project;
   final List<Sentence> sentences;
+  final List<Speaker> speakers;
   final bool isLoading;
   final String? error;
 
   const ProjectDetailState({
     this.project,
     this.sentences = const [],
+    this.speakers = const [],
     this.isLoading = false,
     this.error,
   });
@@ -155,12 +159,14 @@ class ProjectDetailState {
   ProjectDetailState copyWith({
     Project? project,
     List<Sentence>? sentences,
+    List<Speaker>? speakers,
     bool? isLoading,
     String? error,
   }) {
     return ProjectDetailState(
       project: project ?? this.project,
       sentences: sentences ?? this.sentences,
+      speakers: speakers ?? this.speakers,
       isLoading: isLoading ?? this.isLoading,
       error: error,
     );
@@ -170,9 +176,10 @@ class ProjectDetailState {
 /// Notifier for managing project detail state.
 class ProjectDetailNotifier extends StateNotifier<ProjectDetailState> {
   final ProjectRepository _repository;
+  final SpeakerDao _speakerDao;
   final String _projectId;
 
-  ProjectDetailNotifier(this._repository, this._projectId)
+  ProjectDetailNotifier(this._repository, this._speakerDao, this._projectId)
       : super(const ProjectDetailState()) {
     loadProject();
   }
@@ -191,9 +198,17 @@ class ProjectDetailNotifier extends StateNotifier<ProjectDetailState> {
         // Load sentences
         final sentencesResult = await _repository.getSentences(_projectId);
 
+        // Load speakers
+        final speakerModels = await _speakerDao.getByProjectId(_projectId);
+        final speakers = speakerModels.map((s) => s.toEntity()).toList();
+
         sentencesResult.fold(
           onSuccess: (sentences) {
-            state = state.copyWith(sentences: sentences, isLoading: false);
+            state = state.copyWith(
+              sentences: sentences,
+              speakers: speakers,
+              isLoading: false,
+            );
           },
           onFailure: (failure) {
             state = state.copyWith(error: failure.message, isLoading: false);
@@ -220,7 +235,8 @@ class ProjectDetailNotifier extends StateNotifier<ProjectDetailState> {
 final projectDetailProvider = StateNotifierProvider.family<
     ProjectDetailNotifier, ProjectDetailState, String>((ref, projectId) {
   final repository = ref.watch(projectRepositoryProvider);
-  return ProjectDetailNotifier(repository, projectId);
+  final speakerDao = ref.watch(speakerDaoProvider);
+  return ProjectDetailNotifier(repository, speakerDao, projectId);
 });
 
 /// Provider for current project ID.
