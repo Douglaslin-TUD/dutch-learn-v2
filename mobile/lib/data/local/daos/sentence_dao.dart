@@ -137,4 +137,60 @@ class SentenceDao {
       whereArgs: [id],
     );
   }
+
+  /// Toggles is_difficult flag on a sentence.
+  Future<bool> toggleDifficult(String id) async {
+    final db = await _database.database;
+    final sentence = await getById(id);
+    if (sentence == null) return false;
+    final newValue = sentence.isDifficult ? 0 : 1;
+    await db.update(
+      'sentences',
+      {'is_difficult': newValue},
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+    return newValue == 1;
+  }
+
+  /// Gets all difficult sentences for a project.
+  Future<List<SentenceModel>> getDifficultByProjectId(String projectId) async {
+    final db = await _database.database;
+    final results = await db.query(
+      'sentences',
+      where: 'project_id = ? AND is_difficult = 1',
+      whereArgs: [projectId],
+      orderBy: 'idx ASC',
+    );
+    return results.map((map) => SentenceModel.fromMap(map)).toList();
+  }
+
+  /// Records a review, incrementing review_count and updating last_reviewed.
+  Future<int> recordReview(String id) async {
+    final db = await _database.database;
+    return db.rawUpdate(
+      'UPDATE sentences SET review_count = review_count + 1, last_reviewed = ? WHERE id = ?',
+      [DateTime.now().toIso8601String(), id],
+    );
+  }
+
+  /// Updates review-related fields for a sentence.
+  Future<int> updateReviewProgress(
+    String id, {
+    required bool isDifficult,
+    required int reviewCount,
+    DateTime? lastReviewed,
+  }) async {
+    final db = await _database.database;
+    return db.update(
+      'sentences',
+      {
+        'is_difficult': isDifficult ? 1 : 0,
+        'review_count': reviewCount,
+        'last_reviewed': lastReviewed?.toIso8601String(),
+      },
+      where: 'id = ?',
+      whereArgs: [id],
+    );
+  }
 }

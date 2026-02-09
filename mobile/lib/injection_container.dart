@@ -5,6 +5,7 @@ import 'package:dutch_learn_app/data/local/database.dart';
 import 'package:dutch_learn_app/data/local/daos/keyword_dao.dart';
 import 'package:dutch_learn_app/data/local/daos/project_dao.dart';
 import 'package:dutch_learn_app/data/local/daos/sentence_dao.dart';
+import 'package:dutch_learn_app/data/local/daos/speaker_dao.dart';
 import 'package:dutch_learn_app/data/repositories/google_drive_repository_impl.dart';
 import 'package:dutch_learn_app/data/repositories/project_repository_impl.dart';
 import 'package:dutch_learn_app/data/repositories/settings_repository_impl.dart';
@@ -43,6 +44,12 @@ final sentenceDaoProvider = Provider<SentenceDao>((ref) {
 final keywordDaoProvider = Provider<KeywordDao>((ref) {
   final database = ref.watch(appDatabaseProvider);
   return KeywordDao(database);
+});
+
+/// Provider for SpeakerDao.
+final speakerDaoProvider = Provider<SpeakerDao>((ref) {
+  final database = ref.watch(appDatabaseProvider);
+  return SpeakerDao(database);
 });
 
 /// Provider for GoogleDriveService.
