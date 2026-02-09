@@ -2,9 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:dutch_learn_app/domain/entities/sentence.dart';
+import 'package:dutch_learn_app/domain/entities/speaker.dart';
+import 'package:dutch_learn_app/injection_container.dart';
 import 'package:dutch_learn_app/presentation/providers/audio_provider.dart';
 import 'package:dutch_learn_app/presentation/providers/learning_provider.dart';
 import 'package:dutch_learn_app/presentation/providers/project_provider.dart';
+import 'package:dutch_learn_app/presentation/screens/review_screen.dart';
 import 'package:dutch_learn_app/presentation/widgets/audio_player_widget.dart';
 import 'package:dutch_learn_app/presentation/widgets/keyword_popup.dart';
 import 'package:dutch_learn_app/presentation/widgets/sentence_card.dart';
@@ -25,6 +28,21 @@ class LearningScreen extends ConsumerStatefulWidget {
 
 class _LearningScreenState extends ConsumerState<LearningScreen> {
   bool _audioLoaded = false;
+
+  Speaker? _findSpeaker(List<Speaker> speakers, String? speakerId) {
+    if (speakerId == null || speakers.isEmpty) return null;
+    try {
+      return speakers.firstWhere((s) => s.id == speakerId);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _toggleBookmark(Sentence sentence) async {
+    final sentenceDao = ref.read(sentenceDaoProvider);
+    await sentenceDao.toggleDifficult(sentence.id);
+    ref.invalidate(projectDetailProvider(widget.projectId));
+  }
 
   @override
   void initState() {
@@ -93,6 +111,7 @@ class _LearningScreenState extends ConsumerState<LearningScreen> {
 
     final project = projectState.project;
     final sentences = projectState.sentences;
+    final speakers = projectState.speakers;
 
     if (project == null || sentences.isEmpty) {
       return Scaffold(
@@ -134,6 +153,17 @@ class _LearningScreenState extends ConsumerState<LearningScreen> {
         title: Text(project.name),
         actions: [
           IconButton(
+            icon: const Icon(Icons.rate_review),
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => ReviewScreen(projectId: widget.projectId),
+                ),
+              );
+            },
+            tooltip: 'Review difficult sentences',
+          ),
+          IconButton(
             icon: Icon(
               learningState.autoAdvance
                   ? Icons.sync
@@ -154,6 +184,7 @@ class _LearningScreenState extends ConsumerState<LearningScreen> {
               context,
               ref,
               sentences,
+              speakers,
               selectedSentence,
               selectedIndex,
               playingSentence,
@@ -168,6 +199,7 @@ class _LearningScreenState extends ConsumerState<LearningScreen> {
             context,
             ref,
             sentences,
+            speakers,
             selectedSentence,
             selectedIndex,
             playingSentence,
@@ -201,6 +233,7 @@ class _LearningScreenState extends ConsumerState<LearningScreen> {
     BuildContext context,
     WidgetRef ref,
     List<Sentence> sentences,
+    List<Speaker> speakers,
     Sentence selectedSentence,
     int selectedIndex,
     Sentence? playingSentence,
@@ -245,6 +278,8 @@ class _LearningScreenState extends ConsumerState<LearningScreen> {
                       sentence: sentence,
                       isSelected: index == selectedIndex,
                       isPlaying: sentence == playingSentence,
+                      speaker: _findSpeaker(speakers, sentence.speakerId),
+                      onBookmarkTap: () => _toggleBookmark(sentence),
                       onTap: () {
                         learningNotifier.selectSentence(index);
                         audioNotifier.playSentence(sentence);
@@ -282,6 +317,7 @@ class _LearningScreenState extends ConsumerState<LearningScreen> {
     BuildContext context,
     WidgetRef ref,
     List<Sentence> sentences,
+    List<Speaker> speakers,
     Sentence selectedSentence,
     int selectedIndex,
     Sentence? playingSentence,
@@ -348,6 +384,8 @@ class _LearningScreenState extends ConsumerState<LearningScreen> {
                       sentence: sentence,
                       isSelected: index == selectedIndex,
                       isPlaying: sentence == playingSentence,
+                      speaker: _findSpeaker(speakers, sentence.speakerId),
+                      onBookmarkTap: () => _toggleBookmark(sentence),
                       onTap: () {
                         learningNotifier.selectSentence(index);
                         audioNotifier.playSentence(sentence);
