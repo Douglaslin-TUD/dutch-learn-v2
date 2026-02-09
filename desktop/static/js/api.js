@@ -292,6 +292,27 @@ export async function syncFull(projectIds = null) {
     });
 }
 
+/**
+ * Toggle is_difficult on a sentence.
+ */
+export async function toggleDifficult(projectId, sentenceId) {
+    return request(`/projects/${projectId}/sentences/${sentenceId}/difficult`, { method: 'PUT' });
+}
+
+/**
+ * Get all difficult sentences for a project.
+ */
+export async function getDifficultSentences(projectId) {
+    return request(`/projects/${projectId}/difficult`);
+}
+
+/**
+ * Record a review of a sentence.
+ */
+export async function recordReview(projectId, sentenceId) {
+    return request(`/projects/${projectId}/sentences/${sentenceId}/review`, { method: 'POST' });
+}
+
 // Default export for convenience
 export default {
     getProjects,
@@ -304,5 +325,8 @@ export default {
     syncUpload,
     syncDownload,
     syncFull,
+    toggleDifficult,
+    getDifficultSentences,
+    recordReview,
     ApiError,
 };

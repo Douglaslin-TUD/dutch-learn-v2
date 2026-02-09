@@ -635,3 +635,57 @@ async def get_speakers(
     )
 
     return {"speakers": [s.to_dict() for s in speakers]}
+
+
+@router.put("/{project_id}/sentences/{sentence_id}/difficult")
+async def toggle_difficult(
+    project_id: str,
+    sentence_id: str,
+    db: Session = Depends(get_db),
+):
+    """Toggle is_difficult flag on a sentence."""
+    sentence = db.query(Sentence).filter(
+        Sentence.id == sentence_id,
+        Sentence.project_id == project_id,
+    ).first()
+    if not sentence:
+        raise HTTPException(status_code=404, detail="Sentence not found")
+
+    sentence.is_difficult = not sentence.is_difficult
+    db.commit()
+    return {"success": True, "is_difficult": sentence.is_difficult}
+
+
+@router.get("/{project_id}/difficult")
+async def get_difficult_sentences(
+    project_id: str,
+    db: Session = Depends(get_db),
+):
+    """Get all difficult sentences for a project with speaker data."""
+    sentences = (
+        db.query(Sentence)
+        .filter(Sentence.project_id == project_id, Sentence.is_difficult == True)
+        .order_by(Sentence.idx)
+        .all()
+    )
+    return {"sentences": [s.to_dict() for s in sentences]}
+
+
+@router.post("/{project_id}/sentences/{sentence_id}/review")
+async def record_review(
+    project_id: str,
+    sentence_id: str,
+    db: Session = Depends(get_db),
+):
+    """Record a review of a sentence, incrementing review_count."""
+    sentence = db.query(Sentence).filter(
+        Sentence.id == sentence_id,
+        Sentence.project_id == project_id,
+    ).first()
+    if not sentence:
+        raise HTTPException(status_code=404, detail="Sentence not found")
+
+    sentence.review_count = (sentence.review_count or 0) + 1
+    sentence.last_reviewed = datetime.utcnow()
+    db.commit()
+    return {"success": True, "review_count": sentence.review_count}

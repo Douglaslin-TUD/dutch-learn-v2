@@ -4,7 +4,7 @@
  * Handles routing, state management, view rendering, and user interactions.
  */
 
-import { getProjects, getProject, deleteProject, uploadProject, getProjectStatus, getAudioUrl, syncFull, getSyncStatus, ApiError } from './api.js';
+import { getProjects, getProject, deleteProject, uploadProject, getProjectStatus, getAudioUrl, syncFull, getSyncStatus, toggleDifficult, getDifficultSentences, recordReview, ApiError } from './api.js';
 import { AudioPlayer, PLAYBACK_SPEEDS, formatTime } from './audio-player.js';
 
 // ============================================================================
