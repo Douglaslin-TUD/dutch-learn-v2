@@ -16,6 +16,10 @@ class SentenceModel extends Sentence {
     super.explanationEn,
     super.learned = false,
     super.learnCount = 0,
+    super.speakerId,
+    super.isDifficult = false,
+    super.reviewCount = 0,
+    super.lastReviewed,
     super.keywords = const [],
   });
 
@@ -35,6 +39,12 @@ class SentenceModel extends Sentence {
       explanationEn: map['explanation_en'] as String?,
       learned: (map['learned'] as int? ?? 0) == 1,
       learnCount: map['learn_count'] as int? ?? 0,
+      speakerId: map['speaker_id'] as String?,
+      isDifficult: (map['is_difficult'] as int? ?? 0) == 1,
+      reviewCount: map['review_count'] as int? ?? 0,
+      lastReviewed: map['last_reviewed'] != null
+          ? DateTime.tryParse(map['last_reviewed'] as String)
+          : null,
       keywords: const [],
     );
   }
@@ -57,6 +67,12 @@ class SentenceModel extends Sentence {
       explanationEn: json['explanation_en'] as String?,
       learned: json['learned'] as bool? ?? false,
       learnCount: json['learn_count'] as int? ?? 0,
+      speakerId: json['speaker_id'] as String?,
+      isDifficult: json['is_difficult'] as bool? ?? false,
+      reviewCount: json['review_count'] as int? ?? 0,
+      lastReviewed: json['last_reviewed'] != null
+          ? DateTime.tryParse(json['last_reviewed'] as String)
+          : null,
       keywords: const [],
     );
   }
@@ -75,6 +91,10 @@ class SentenceModel extends Sentence {
       explanationEn: sentence.explanationEn,
       learned: sentence.learned,
       learnCount: sentence.learnCount,
+      speakerId: sentence.speakerId,
+      isDifficult: sentence.isDifficult,
+      reviewCount: sentence.reviewCount,
+      lastReviewed: sentence.lastReviewed,
       keywords: sentence.keywords,
     );
   }
@@ -95,6 +115,10 @@ class SentenceModel extends Sentence {
       'explanation_en': explanationEn,
       'learned': learned ? 1 : 0,
       'learn_count': learnCount,
+      'speaker_id': speakerId,
+      'is_difficult': isDifficult ? 1 : 0,
+      'review_count': reviewCount,
+      'last_reviewed': lastReviewed?.toIso8601String(),
     };
   }
 
@@ -112,6 +136,10 @@ class SentenceModel extends Sentence {
       'explanation_en': explanationEn,
       'learned': learned,
       'learn_count': learnCount,
+      'speaker_id': speakerId,
+      'is_difficult': isDifficult,
+      'review_count': reviewCount,
+      'last_reviewed': lastReviewed?.toIso8601String(),
       'keywords': keywords.map((k) => KeywordModel.fromEntity(k).toJson()).toList(),
     };
   }
@@ -130,6 +158,10 @@ class SentenceModel extends Sentence {
       explanationEn: explanationEn,
       learned: learned,
       learnCount: learnCount,
+      speakerId: speakerId,
+      isDifficult: isDifficult,
+      reviewCount: reviewCount,
+      lastReviewed: lastReviewed,
       keywords: keywords,
     );
   }
@@ -148,6 +180,10 @@ class SentenceModel extends Sentence {
       explanationEn: explanationEn,
       learned: learned,
       learnCount: learnCount,
+      speakerId: speakerId,
+      isDifficult: isDifficult,
+      reviewCount: reviewCount,
+      lastReviewed: lastReviewed,
       keywords: keywords,
     );
   }
@@ -165,6 +201,10 @@ class SentenceModel extends Sentence {
     String? explanationEn,
     bool? learned,
     int? learnCount,
+    String? speakerId,
+    bool? isDifficult,
+    int? reviewCount,
+    DateTime? lastReviewed,
     List<Keyword>? keywords,
   }) {
     return SentenceModel(
@@ -179,6 +219,10 @@ class SentenceModel extends Sentence {
       explanationEn: explanationEn ?? this.explanationEn,
       learned: learned ?? this.learned,
       learnCount: learnCount ?? this.learnCount,
+      speakerId: speakerId ?? this.speakerId,
+      isDifficult: isDifficult ?? this.isDifficult,
+      reviewCount: reviewCount ?? this.reviewCount,
+      lastReviewed: lastReviewed ?? this.lastReviewed,
       keywords: keywords ?? this.keywords,
     );
   }

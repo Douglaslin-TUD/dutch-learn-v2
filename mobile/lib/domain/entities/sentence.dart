@@ -41,6 +41,18 @@ class Sentence {
   /// Number of times this sentence has been studied.
   final int learnCount;
 
+  /// ID of the speaker for this sentence.
+  final String? speakerId;
+
+  /// Whether this sentence is marked as difficult.
+  final bool isDifficult;
+
+  /// Number of times this sentence has been reviewed.
+  final int reviewCount;
+
+  /// When this sentence was last reviewed.
+  final DateTime? lastReviewed;
+
   /// List of keywords/vocabulary in this sentence.
   final List<Keyword> keywords;
 
@@ -57,6 +69,10 @@ class Sentence {
     this.explanationEn,
     this.learned = false,
     this.learnCount = 0,
+    this.speakerId,
+    this.isDifficult = false,
+    this.reviewCount = 0,
+    this.lastReviewed,
     this.keywords = const [],
   });
 
@@ -73,6 +89,10 @@ class Sentence {
     String? explanationEn,
     bool? learned,
     int? learnCount,
+    String? speakerId,
+    bool? isDifficult,
+    int? reviewCount,
+    DateTime? lastReviewed,
     List<Keyword>? keywords,
   }) {
     return Sentence(
@@ -87,6 +107,10 @@ class Sentence {
       explanationEn: explanationEn ?? this.explanationEn,
       learned: learned ?? this.learned,
       learnCount: learnCount ?? this.learnCount,
+      speakerId: speakerId ?? this.speakerId,
+      isDifficult: isDifficult ?? this.isDifficult,
+      reviewCount: reviewCount ?? this.reviewCount,
+      lastReviewed: lastReviewed ?? this.lastReviewed,
       keywords: keywords ?? this.keywords,
     );
   }
@@ -168,6 +192,9 @@ class Sentence {
         other.translationEn == translationEn &&
         other.explanationNl == explanationNl &&
         other.explanationEn == explanationEn &&
+        other.speakerId == speakerId &&
+        other.isDifficult == isDifficult &&
+        other.reviewCount == reviewCount &&
         listEquals(other.keywords, keywords);
   }
 
@@ -183,6 +210,9 @@ class Sentence {
       translationEn,
       explanationNl,
       explanationEn,
+      speakerId,
+      isDifficult,
+      reviewCount,
       Object.hashAll(keywords),
     );
   }

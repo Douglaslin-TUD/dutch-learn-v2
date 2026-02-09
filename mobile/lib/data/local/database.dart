@@ -63,6 +63,10 @@ class AppDatabase {
         explanation_en TEXT,
         learned INTEGER NOT NULL DEFAULT 0,
         learn_count INTEGER NOT NULL DEFAULT 0,
+        speaker_id TEXT,
+        is_difficult INTEGER NOT NULL DEFAULT 0,
+        review_count INTEGER NOT NULL DEFAULT 0,
+        last_reviewed TEXT,
         FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
       )
     ''');
@@ -79,6 +83,20 @@ class AppDatabase {
       )
     ''');
 
+    // Create speakers table
+    await db.execute('''
+      CREATE TABLE speakers (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        label TEXT NOT NULL,
+        display_name TEXT,
+        confidence REAL NOT NULL DEFAULT 0.0,
+        evidence TEXT,
+        is_manual INTEGER NOT NULL DEFAULT 0,
+        FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
+      )
+    ''');
+
     // Create indexes for performance
     await db.execute(
       'CREATE INDEX idx_sentences_project ON sentences (project_id)',
@@ -92,6 +110,9 @@ class AppDatabase {
     await db.execute(
       'CREATE INDEX idx_projects_source ON projects (source_id)',
     );
+    await db.execute(
+      'CREATE INDEX idx_speakers_project ON speakers (project_id)',
+    );
   }
 
   Future<void> _onUpgrade(
@@ -102,6 +123,25 @@ class AppDatabase {
     if (oldVersion < 2) {
       await db.execute('ALTER TABLE sentences ADD COLUMN learned INTEGER NOT NULL DEFAULT 0');
       await db.execute('ALTER TABLE sentences ADD COLUMN learn_count INTEGER NOT NULL DEFAULT 0');
+    }
+    if (oldVersion < 3) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS speakers (
+          id TEXT PRIMARY KEY,
+          project_id TEXT NOT NULL,
+          label TEXT NOT NULL,
+          display_name TEXT,
+          confidence REAL NOT NULL DEFAULT 0.0,
+          evidence TEXT,
+          is_manual INTEGER NOT NULL DEFAULT 0,
+          FOREIGN KEY (project_id) REFERENCES projects (id) ON DELETE CASCADE
+        )
+      ''');
+      await db.execute('CREATE INDEX IF NOT EXISTS idx_speakers_project ON speakers (project_id)');
+      await db.execute('ALTER TABLE sentences ADD COLUMN speaker_id TEXT');
+      await db.execute('ALTER TABLE sentences ADD COLUMN is_difficult INTEGER NOT NULL DEFAULT 0');
+      await db.execute('ALTER TABLE sentences ADD COLUMN review_count INTEGER NOT NULL DEFAULT 0');
+      await db.execute('ALTER TABLE sentences ADD COLUMN last_reviewed TEXT');
     }
   }
 
