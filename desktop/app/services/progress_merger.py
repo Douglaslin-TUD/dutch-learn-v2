@@ -58,6 +58,9 @@ class ProgressMerger:
         merged['progress']['learned_sentences'] = sum(
             1 for s in merged['sentences'] if s.get('learned', False)
         )
+        merged['progress']['difficult_sentences'] = sum(
+            1 for s in merged['sentences'] if s.get('is_difficult', False)
+        )
         merged['progress']['last_sync'] = datetime.now().isoformat()
 
         return merged
@@ -93,6 +96,22 @@ class ProgressMerger:
             local_count = local_s.get('learn_count', 0) or 0
             remote_count = remote_s.get('learn_count', 0) or 0
             merged_sentence['learn_count'] = max(local_count, remote_count)
+
+            # Merge difficult/review progress
+            merged_sentence['is_difficult'] = local_s.get('is_difficult', False) or remote_s.get('is_difficult', False)
+
+            local_review = local_s.get('review_count', 0) or 0
+            remote_review = remote_s.get('review_count', 0) or 0
+            merged_sentence['review_count'] = max(local_review, remote_review)
+
+            local_lr = local_s.get('last_reviewed')
+            remote_lr = remote_s.get('last_reviewed')
+            if local_lr and remote_lr:
+                local_dt = self._parse_timestamp(local_lr)
+                remote_dt = self._parse_timestamp(remote_lr)
+                merged_sentence['last_reviewed'] = local_lr if (local_dt and remote_dt and local_dt >= remote_dt) else remote_lr
+            else:
+                merged_sentence['last_reviewed'] = local_lr or remote_lr
 
             merged.append(merged_sentence)
 

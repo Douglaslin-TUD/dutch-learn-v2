@@ -346,8 +346,11 @@ class SyncService:
                     'explanation_nl': s.explanation_nl,
                     'explanation_en': s.explanation_en,
                     'speaker_id': s.speaker_id,
-                    'learned': getattr(s, 'learned', False),
-                    'learn_count': getattr(s, 'learn_count', 0),
+                    'learned': s.learned or False,
+                    'learn_count': s.learn_count or 0,
+                    'is_difficult': s.is_difficult or False,
+                    'review_count': s.review_count or 0,
+                    'last_reviewed': s.last_reviewed.isoformat() if s.last_reviewed else None,
                 }
                 for s in sentences
             ],
@@ -363,7 +366,8 @@ class SyncService:
             ],
             'progress': {
                 'total_sentences': len(sentences),
-                'learned_sentences': sum(1 for s in sentences if getattr(s, 'learned', False)),
+                'learned_sentences': sum(1 for s in sentences if s.learned),
+                'difficult_sentences': sum(1 for s in sentences if s.is_difficult),
                 'last_sync': datetime.now(timezone.utc).isoformat(),
             }
         }
@@ -518,10 +522,21 @@ class SyncService:
             sentence = db.query(Sentence).filter(Sentence.id == s_data['id']).first()
             if sentence:
                 # Update learning progress
-                if hasattr(sentence, 'learned'):
-                    sentence.learned = s_data.get('learned', sentence.learned)
-                if hasattr(sentence, 'learn_count'):
-                    sentence.learn_count = s_data.get('learn_count', sentence.learn_count)
+                sentence.learned = s_data.get('learned', sentence.learned)
+                sentence.learn_count = s_data.get('learn_count', sentence.learn_count)
+                sentence.is_difficult = s_data.get('is_difficult', sentence.is_difficult)
+                sentence.review_count = max(
+                    s_data.get('review_count', 0) or 0,
+                    sentence.review_count or 0,
+                )
+                lr_str = s_data.get('last_reviewed')
+                if lr_str:
+                    try:
+                        remote_lr = datetime.fromisoformat(lr_str.replace('Z', '+00:00'))
+                        if not sentence.last_reviewed or remote_lr > sentence.last_reviewed:
+                            sentence.last_reviewed = remote_lr
+                    except (ValueError, TypeError):
+                        pass
             else:
                 sentence = Sentence(
                     id=s_data['id'],
@@ -534,6 +549,10 @@ class SyncService:
                     explanation_nl=s_data.get('explanation_nl'),
                     explanation_en=s_data.get('explanation_en'),
                     speaker_id=s_data.get('speaker_id'),
+                    learned=s_data.get('learned', False),
+                    learn_count=s_data.get('learn_count', 0),
+                    is_difficult=s_data.get('is_difficult', False),
+                    review_count=s_data.get('review_count', 0),
                 )
                 db.add(sentence)
 
