@@ -4,6 +4,7 @@ import 'package:dutch_learn_app/domain/entities/project.dart';
 import 'package:dutch_learn_app/domain/entities/sentence.dart';
 import 'package:dutch_learn_app/domain/entities/keyword.dart';
 import 'package:dutch_learn_app/domain/entities/drive_file.dart';
+import 'package:dutch_learn_app/domain/entities/speaker.dart';
 
 class TestData {
   static Project project({
@@ -56,6 +57,10 @@ class TestData {
     String? explanationEn,
     bool learned = false,
     int learnCount = 0,
+    String? speakerId,
+    bool isDifficult = false,
+    int reviewCount = 0,
+    DateTime? lastReviewed,
     List<Keyword>? keywords,
   }) {
     return Sentence(
@@ -70,6 +75,10 @@ class TestData {
       explanationEn: explanationEn,
       learned: learned,
       learnCount: learnCount,
+      speakerId: speakerId,
+      isDifficult: isDifficult,
+      reviewCount: reviewCount,
+      lastReviewed: lastReviewed,
       keywords: keywords ?? [],
     );
   }
@@ -90,13 +99,34 @@ class TestData {
     );
   }
 
+  static Speaker speaker({
+    String id = 'speaker-1',
+    String projectId = 'test-project-id',
+    String label = 'A',
+    String? displayName,
+    double confidence = 0.0,
+    String? evidence,
+    bool isManual = false,
+  }) {
+    return Speaker(
+      id: id,
+      projectId: projectId,
+      label: label,
+      displayName: displayName,
+      confidence: confidence,
+      evidence: evidence,
+      isManual: isManual,
+    );
+  }
+
   /// Standard import JSON matching v1.0 schema.
   static Map<String, dynamic> importJson({
     String projectId = 'source-project-id',
     String projectName = 'Import Test',
     int sentenceCount = 2,
+    bool includeSpeakers = false,
   }) {
-    return {
+    final json = <String, dynamic>{
       'version': '1.0',
       'exported_at': '2026-01-15T10:00:00',
       'project': {
@@ -115,6 +145,10 @@ class TestData {
           'translation_en': 'Sentence ${i + 1}',
           'explanation_nl': null,
           'explanation_en': null,
+          'speaker_id': includeSpeakers ? 'speaker-${i % 2 + 1}' : null,
+          'is_difficult': false,
+          'review_count': 0,
+          'last_reviewed': null,
           'keywords': [
             {
               'word': 'woord$i',
@@ -125,5 +159,26 @@ class TestData {
         };
       }),
     };
+    if (includeSpeakers) {
+      json['speakers'] = [
+        {
+          'id': 'speaker-1',
+          'label': 'A',
+          'display_name': null,
+          'confidence': 0.95,
+          'evidence': null,
+          'is_manual': false,
+        },
+        {
+          'id': 'speaker-2',
+          'label': 'B',
+          'display_name': null,
+          'confidence': 0.87,
+          'evidence': null,
+          'is_manual': false,
+        },
+      ];
+    }
+    return json;
   }
 }

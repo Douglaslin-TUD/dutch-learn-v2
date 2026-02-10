@@ -195,6 +195,7 @@ class Sentence {
         other.speakerId == speakerId &&
         other.isDifficult == isDifficult &&
         other.reviewCount == reviewCount &&
+        other.lastReviewed == lastReviewed &&
         listEquals(other.keywords, keywords);
   }
 
@@ -213,6 +214,7 @@ class Sentence {
       speakerId,
       isDifficult,
       reviewCount,
+      lastReviewed,
       Object.hashAll(keywords),
     );
   }

@@ -75,7 +75,6 @@ dev_dependencies:
   json_serializable: ^6.7.1
   riverpod_generator: ^2.3.9
   mockito: ^5.4.3
-  sqflite_common_ffi: ^2.3.0
 
 flutter:
   uses-material-design: true

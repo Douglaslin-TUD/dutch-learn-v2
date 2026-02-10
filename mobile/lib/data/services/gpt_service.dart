@@ -5,14 +5,12 @@ import 'package:dio/dio.dart';
 /// Service for OpenAI GPT API for generating explanations.
 class GptService {
   final Dio _dio;
-  final String _apiKey;
 
   static const String _baseUrl = 'https://api.openai.com/v1';
   static const String _model = 'gpt-4o-mini';
 
   GptService({required String apiKey})
-      : _apiKey = apiKey,
-        _dio = Dio(BaseOptions(
+      : _dio = Dio(BaseOptions(
           baseUrl: _baseUrl,
           headers: {
             'Authorization': 'Bearer $apiKey',

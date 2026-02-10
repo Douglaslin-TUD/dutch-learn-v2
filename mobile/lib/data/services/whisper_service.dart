@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
@@ -6,14 +5,12 @@ import 'package:dio/dio.dart';
 /// Service for OpenAI Whisper API transcription.
 class WhisperService {
   final Dio _dio;
-  final String _apiKey;
 
   static const String _baseUrl = 'https://api.openai.com/v1';
   static const String _model = 'whisper-1';
 
   WhisperService({required String apiKey})
-      : _apiKey = apiKey,
-        _dio = Dio(BaseOptions(
+      : _dio = Dio(BaseOptions(
           baseUrl: _baseUrl,
           headers: {
             'Authorization': 'Bearer $apiKey',
