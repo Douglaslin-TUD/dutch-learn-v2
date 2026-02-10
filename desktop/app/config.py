@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     gpt_model: str = "gpt-4o-mini"
     explanation_batch_size: int = 5
     max_retries: int = 3
+    max_sentence_words: int = 100
 
     # Supported file extensions
     supported_video_extensions: set = {".mkv", ".mp4", ".avi", ".webm", ".mov"}
