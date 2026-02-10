@@ -18,6 +18,7 @@ from app.models import Project, Sentence, Keyword, Speaker
 from app.services.audio_extractor import AudioExtractor, AudioExtractionError
 from app.services.assemblyai_transcriber import AssemblyAITranscriber, TranscriptionError
 from app.services.explainer import Explainer, ExplanationError
+from app.services.sentence_splitter import SentenceSplitter
 from app.utils.file_utils import is_video_file, get_audio_path, get_upload_path
 
 
@@ -140,6 +141,10 @@ class Processor:
                 max_retries=settings.max_retries,
             )
 
+            # Split long utterances into shorter sentences
+            splitter = SentenceSplitter(max_words=settings.max_sentence_words)
+            utterances = splitter.split_utterances(result.utterances)
+
             # Use transaction to ensure consistency
             try:
                 # Create Speaker records
@@ -159,7 +164,7 @@ class Processor:
                     speaker_map[speaker_info.label] = speaker.id
 
                 # Create Sentence records
-                for idx, utterance in enumerate(result.utterances):
+                for idx, utterance in enumerate(utterances):
                     sentence = Sentence(
                         id=str(uuid.uuid4()),
                         project_id=project.id,
@@ -172,7 +177,7 @@ class Processor:
                     db.add(sentence)
 
                 # Update project
-                project.total_sentences = len(result.utterances)
+                project.total_sentences = len(utterances)
                 project.processed_sentences = 0
                 db.commit()
 
