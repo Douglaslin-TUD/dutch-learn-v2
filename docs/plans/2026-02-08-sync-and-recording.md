@@ -1200,7 +1200,149 @@ git commit -m "fix(mobile): resolve remaining compilation errors"
 
 ---
 
-### Task 13: Build release APK
+### Task 13: Code Review & Evaluation (评价)
+
+**Files:** All modified files from Tasks 1-12
+
+**Goal:** Systematically review all changes for correctness, consistency, and completeness before building.
+
+**Step 1: Review all modified files for correctness**
+
+Check each modified file against the plan:
+```bash
+cd mobile && git diff --stat HEAD~12..HEAD
+```
+Verify:
+- [ ] All 27 original compilation errors are resolved
+- [ ] No new compilation errors introduced
+- [ ] Entity/Model field names are consistent (snake_case in DB/JSON, camelCase in Dart)
+- [ ] All DAO methods match their callers' expectations (parameter names, return types)
+- [ ] SyncService and SyncProvider don't have duplicate/conflicting logic
+- [ ] DI wiring in injection_container.dart is complete (no missing providers)
+
+**Step 2: Review data flow consistency**
+
+Trace the full data flow and verify consistency:
+1. **Import path:** RecordScreen → ProcessedProject.toJson() → importProject → DAO inserts
+2. **Export path:** exportProject → DAO reads → JSON map → Google Drive upload
+3. **Sync path:** SyncProvider → repository methods → SyncService → DAOs
+4. Verify JSON field names match between export and import (e.g., `start_time`, `learn_count`)
+
+**Step 3: Review test coverage**
+
+```bash
+cd mobile && flutter test --coverage
+```
+Check:
+- [ ] Existing tests still pass
+- [ ] New DAO methods (updateLearningProgress, getByProjectId) have test coverage
+- [ ] SentenceModel serialization with new learned/learnCount fields is tested
+- [ ] If coverage gaps exist, note them for Task 15
+
+**Step 4: Document evaluation findings**
+
+Create a brief evaluation report:
+```bash
+cat > docs/validation/2026-02-08-sync-evaluation.md << 'EOF'
+# Sync & Recording Implementation Evaluation
+## Date: [current date]
+## Status: [PASS/FAIL/NEEDS_FIXES]
+## Findings:
+- [list findings here]
+## Action items:
+- [list items for debugging if needed]
+EOF
+```
+
+---
+
+### Task 14: Debug & Fix Issues (调试)
+
+**Files:** Depends on issues found in Task 13
+
+**Goal:** Fix all issues discovered during evaluation. This task is conditional — skip if Task 13 found no issues.
+
+**Step 1: Address each finding from evaluation report**
+
+For each issue found in Task 13:
+1. Read the relevant source file
+2. Understand the root cause
+3. Implement the fix
+4. Verify the fix with `flutter analyze`
+
+**Step 2: Run targeted tests**
+
+For each fix, run the relevant test file:
+```bash
+cd mobile && flutter test test/data/models/sentence_model_test.dart
+cd mobile && flutter test test/data/repositories/  # if repo tests exist
+```
+
+**Step 3: Run full test suite after all fixes**
+
+```bash
+cd mobile && flutter test
+cd mobile && flutter analyze
+```
+
+**Step 4: Commit fixes**
+
+```bash
+git add -A
+git commit -m "fix(mobile): address issues found during code evaluation"
+```
+
+---
+
+### Task 15: Re-evaluation (重新评价)
+
+**Files:** All modified files
+
+**Goal:** Verify that all issues from Task 13 are resolved and no regressions were introduced.
+
+**Step 1: Re-run full analysis**
+
+```bash
+cd mobile && flutter analyze
+```
+Expected: 0 errors
+
+**Step 2: Re-run full test suite**
+
+```bash
+cd mobile && flutter test
+```
+Expected: All tests pass, no regressions
+
+**Step 3: Verify all Task 13 findings are resolved**
+
+Go through each finding from the evaluation report (docs/validation/2026-02-08-sync-evaluation.md) and confirm it's fixed. Update the report status to PASS.
+
+**Step 4: Smoke test the data flows**
+
+Manually verify key data flows compile correctly by tracing imports:
+1. `record_screen.dart` → `project_provider.dart` → `project_repository_impl.dart` → DAOs
+2. `sync_provider.dart` → `google_drive_repository.dart` → `sync_service.dart` → DAOs
+3. `injection_container.dart` references all providers correctly
+
+**Step 5: Update evaluation report**
+
+```bash
+# Update docs/validation/2026-02-08-sync-evaluation.md
+# Set status to PASS, note all issues resolved
+```
+
+**Step 6: If new issues found, loop back to Task 14**
+
+If re-evaluation finds new issues:
+1. Update the evaluation report with new findings
+2. Return to Task 14 to fix them
+3. Come back to Task 15 to re-evaluate
+4. Repeat until clean
+
+---
+
+### Task 16: Build release APK
 
 **Files:** None (build only)
 
