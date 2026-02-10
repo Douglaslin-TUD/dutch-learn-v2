@@ -262,7 +262,7 @@ class SyncService:
         # Get projects from database
         db = next(get_db())
         try:
-            query = db.query(Project).filter(Project.status == 'completed')
+            query = db.query(Project).filter(Project.status == 'ready')
             if project_ids:
                 query = query.filter(Project.id.in_(project_ids))
 
@@ -318,6 +318,11 @@ class SyncService:
         keywords = db.query(Keyword).filter(Keyword.sentence_id.in_([s.id for s in sentences])).all()
         speakers = db.query(Speaker).filter(Speaker.project_id == project.id).all()
 
+        # Build keyword lookup by sentence_id
+        keyword_map = {}
+        for k in keywords:
+            keyword_map.setdefault(k.sentence_id, []).append(k)
+
         return {
             'id': project.id,
             'name': project.name,
@@ -338,7 +343,7 @@ class SyncService:
             'sentences': [
                 {
                     'id': s.id,
-                    'idx': s.idx,
+                    'index': s.idx,
                     'text': s.text,
                     'start_time': s.start_time,
                     'end_time': s.end_time,
@@ -351,6 +356,14 @@ class SyncService:
                     'is_difficult': s.is_difficult or False,
                     'review_count': s.review_count or 0,
                     'last_reviewed': s.last_reviewed.isoformat() if s.last_reviewed else None,
+                    'keywords': [
+                        {
+                            'word': k.word,
+                            'meaning_nl': k.meaning_nl,
+                            'meaning_en': k.meaning_en,
+                        }
+                        for k in keyword_map.get(s.id, [])
+                    ],
                 }
                 for s in sentences
             ],
@@ -479,6 +492,7 @@ class SyncService:
 
     def _import_project(self, data: dict, db) -> None:
         """Import a project from JSON data into database."""
+        import uuid as _uuid
         from app.models import Project, Sentence, Keyword, Speaker
         from datetime import datetime
 
@@ -490,7 +504,7 @@ class SyncService:
             project = Project(
                 id=project_id,
                 name=data.get('name', project_id),
-                status=data.get('status', 'completed'),
+                status=data.get('status', 'ready'),
             )
             db.add(project)
         else:
@@ -533,6 +547,9 @@ class SyncService:
                 if lr_str:
                     try:
                         remote_lr = datetime.fromisoformat(lr_str.replace('Z', '+00:00'))
+                        # Make naive for comparison with SQLite-stored timestamps
+                        if remote_lr.tzinfo is not None:
+                            remote_lr = remote_lr.replace(tzinfo=None)
                         if not sentence.last_reviewed or remote_lr > sentence.last_reviewed:
                             sentence.last_reviewed = remote_lr
                     except (ValueError, TypeError):
@@ -541,7 +558,7 @@ class SyncService:
                 sentence = Sentence(
                     id=s_data['id'],
                     project_id=project_id,
-                    idx=s_data.get('idx', 0),
+                    idx=s_data.get('index', s_data.get('idx', 0)),
                     text=s_data['text'],
                     start_time=s_data.get('start_time'),
                     end_time=s_data.get('end_time'),
@@ -553,10 +570,11 @@ class SyncService:
                     learn_count=s_data.get('learn_count', 0),
                     is_difficult=s_data.get('is_difficult', False),
                     review_count=s_data.get('review_count', 0),
+                    last_reviewed=datetime.fromisoformat(s_data['last_reviewed'].replace('Z', '+00:00')) if s_data.get('last_reviewed') else None,
                 )
                 db.add(sentence)
 
-        # Update keywords
+        # Update keywords (top-level format)
         for k_data in data.get('keywords', []):
             keyword = db.query(Keyword).filter(Keyword.id == k_data['id']).first()
             if not keyword:
@@ -568,6 +586,28 @@ class SyncService:
                     meaning_en=k_data.get('meaning_en'),
                 )
                 db.add(keyword)
+
+        # Import keywords from sentences (nested format)
+        for s_data in data.get('sentences', []):
+            sentence_id = s_data['id']
+            # Check if this sentence exists locally
+            sentence = db.query(Sentence).filter(Sentence.id == sentence_id).first()
+            if sentence:
+                for k_data in s_data.get('keywords', []):
+                    # Check by word + sentence_id to avoid duplicates
+                    existing = db.query(Keyword).filter(
+                        Keyword.sentence_id == sentence_id,
+                        Keyword.word == k_data.get('word', ''),
+                    ).first()
+                    if not existing:
+                        keyword = Keyword(
+                            id=str(_uuid.uuid4()),
+                            sentence_id=sentence_id,
+                            word=k_data.get('word', ''),
+                            meaning_nl=k_data.get('meaning_nl'),
+                            meaning_en=k_data.get('meaning_en'),
+                        )
+                        db.add(keyword)
 
         db.commit()
 
@@ -587,7 +627,7 @@ class SyncService:
         # Count local projects
         db = next(get_db())
         try:
-            status['local_projects'] = db.query(Project).filter(Project.status == 'completed').count()
+            status['local_projects'] = db.query(Project).filter(Project.status == 'ready').count()
         finally:
             db.close()
 

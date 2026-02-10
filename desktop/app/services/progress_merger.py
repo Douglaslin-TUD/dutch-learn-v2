@@ -33,7 +33,7 @@ class ProgressMerger:
         merged = {
             'id': local_data.get('id') or remote_data.get('id'),
             'name': local_data.get('name') or remote_data.get('name'),
-            'status': local_data.get('status') or remote_data.get('status', 'completed'),
+            'status': local_data.get('status') or remote_data.get('status', 'ready'),
             'created_at': self._earliest_timestamp(
                 local_data.get('created_at'),
                 remote_data.get('created_at')
@@ -46,6 +46,10 @@ class ProgressMerger:
             'keywords': self._merge_keywords(
                 local_data.get('keywords', []),
                 remote_data.get('keywords', [])
+            ),
+            'speakers': self._merge_speakers(
+                local_data.get('speakers', []),
+                remote_data.get('speakers', []),
             ),
             'progress': self._merge_progress(
                 local_data.get('progress', {}),
@@ -116,7 +120,7 @@ class ProgressMerger:
             merged.append(merged_sentence)
 
         # Sort by order
-        merged.sort(key=lambda s: s.get('order', 0))
+        merged.sort(key=lambda s: s.get('index', s.get('idx', 0)))
 
         return merged
 
@@ -137,6 +141,22 @@ class ProgressMerger:
                 merged.append(keyword)
 
         return merged
+
+    def _merge_speakers(self, local_speakers: list, remote_speakers: list) -> list:
+        """Merge speaker lists, preferring manually set display names."""
+        speaker_map = {}
+        for sp in local_speakers:
+            speaker_map[sp.get('id', '')] = sp
+        for sp in remote_speakers:
+            sp_id = sp.get('id', '')
+            if sp_id in speaker_map:
+                local_sp = speaker_map[sp_id]
+                # Prefer manually set names
+                if sp.get('is_manual') and not local_sp.get('is_manual'):
+                    speaker_map[sp_id] = sp
+            else:
+                speaker_map[sp_id] = sp
+        return list(speaker_map.values())
 
     def _merge_progress(self, local: dict, remote: dict) -> dict:
         """

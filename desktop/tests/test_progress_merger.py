@@ -157,12 +157,12 @@ class TestProgressMerger:
         assert result["sentences"][0]["learned"] is False
 
     def test_merge_sentences_sorted_by_order(self, merger):
-        """Merged sentences should be sorted by the 'order' field."""
+        """Merged sentences should be sorted by the 'index' field."""
         local = {
             "id": "p1",
             "name": "Test",
             "sentences": [
-                {"id": "s2", "text": "Second", "learn_count": 0, "order": 2},
+                {"id": "s2", "text": "Second", "learn_count": 0, "index": 2},
             ],
             "keywords": [],
             "progress": {},
@@ -171,8 +171,8 @@ class TestProgressMerger:
             "id": "p1",
             "name": "Test",
             "sentences": [
-                {"id": "s1", "text": "First", "learn_count": 0, "order": 1},
-                {"id": "s3", "text": "Third", "learn_count": 0, "order": 3},
+                {"id": "s1", "text": "First", "learn_count": 0, "index": 1},
+                {"id": "s3", "text": "Third", "learn_count": 0, "index": 3},
             ],
             "keywords": [],
             "progress": {},

@@ -215,177 +215,6 @@ async def create_project(
     )
 
 
-@router.get("/{project_id}")
-async def get_project(
-    project_id: str,
-    db: Session = Depends(get_db),
-):
-    """
-    Get a specific project with sentences and speakers.
-
-    Args:
-        project_id: The project UUID.
-        db: Database session.
-
-    Returns:
-        dict: Full project data with sentences, keywords, and speakers.
-
-    Raises:
-        HTTPException: If project not found.
-    """
-    project = db.query(Project).filter(Project.id == project_id).first()
-
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    return project.to_dict(include_sentences=True, include_speakers=True)
-
-
-@router.delete("/{project_id}")
-async def delete_project(
-    project_id: str,
-    db: Session = Depends(get_db),
-) -> JSONResponse:
-    """
-    Delete a project and all associated files.
-
-    Args:
-        project_id: The project UUID.
-        db: Database session.
-
-    Returns:
-        JSONResponse: Success message.
-
-    Raises:
-        HTTPException: If project not found.
-    """
-    project = db.query(Project).filter(Project.id == project_id).first()
-
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    # Clean up files
-    cleanup_project_files(project.original_file, project.audio_file)
-
-    # Delete project (cascades to sentences and keywords)
-    db.delete(project)
-    db.commit()
-
-    return JSONResponse(
-        content={"message": "Project deleted successfully", "id": project_id}
-    )
-
-
-@router.get("/{project_id}/status", response_model=ProjectStatus)
-async def get_project_status(
-    project_id: str,
-    db: Session = Depends(get_db),
-) -> ProjectStatus:
-    """
-    Get the current processing status of a project.
-
-    Args:
-        project_id: The project UUID.
-        db: Database session.
-
-    Returns:
-        ProjectStatus: Current processing status and progress.
-
-    Raises:
-        HTTPException: If project not found.
-    """
-    project = db.query(Project).filter(Project.id == project_id).first()
-
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    return ProjectStatus(
-        id=project.id,
-        status=project.status,
-        progress=project.progress,
-        current_stage=project.current_stage_description,
-        error_message=project.error_message,
-    )
-
-
-@router.get("/{project_id}/export")
-async def export_project(
-    project_id: str,
-    db: Session = Depends(get_db),
-) -> Response:
-    """
-    Export a project with all sentences and keywords as JSON.
-
-    This endpoint allows exporting project data for backup or sync with Android app.
-    The exported JSON includes all processed data (sentences, translations, explanations, keywords).
-
-    Args:
-        project_id: The project UUID.
-        db: Database session.
-
-    Returns:
-        Response: JSON file download.
-
-    Raises:
-        HTTPException: If project not found.
-    """
-    project = db.query(Project).filter(Project.id == project_id).first()
-
-    if not project:
-        raise HTTPException(status_code=404, detail="Project not found")
-
-    sentences = (
-        db.query(Sentence)
-        .filter(Sentence.project_id == project_id)
-        .order_by(Sentence.idx)
-        .all()
-    )
-
-    export_data = {
-        "version": "1.0",
-        "exported_at": datetime.utcnow().isoformat(),
-        "project": {
-            "id": project.id,
-            "name": project.name,
-            "status": project.status,
-            "total_sentences": project.total_sentences,
-            "created_at": project.created_at.isoformat() if project.created_at else None,
-        },
-        "sentences": []
-    }
-
-    for s in sentences:
-        keywords = db.query(Keyword).filter(Keyword.sentence_id == s.id).all()
-        export_data["sentences"].append({
-            "index": s.idx,
-            "text": s.text,
-            "start_time": s.start_time,
-            "end_time": s.end_time,
-            "translation_en": s.translation_en,
-            "explanation_nl": s.explanation_nl,
-            "explanation_en": s.explanation_en,
-            "keywords": [
-                {
-                    "word": k.word,
-                    "meaning_nl": k.meaning_nl,
-                    "meaning_en": k.meaning_en,
-                }
-                for k in keywords
-            ],
-        })
-
-    json_content = json.dumps(export_data, ensure_ascii=False, indent=2)
-    filename = f"{project.name}_export.json"
-
-    return Response(
-        content=json_content,
-        media_type="application/json",
-        headers={
-            "Content-Disposition": f'attachment; filename="{filename}"',
-        },
-    )
-
-
 @router.get("/export/all")
 async def export_all_projects(
     db: Session = Depends(get_db),
@@ -563,6 +392,177 @@ async def import_project(
             "message": f"Successfully imported {len(imported_projects)} project(s)",
             "projects": imported_projects,
         }
+    )
+
+
+@router.get("/{project_id}")
+async def get_project(
+    project_id: str,
+    db: Session = Depends(get_db),
+):
+    """
+    Get a specific project with sentences and speakers.
+
+    Args:
+        project_id: The project UUID.
+        db: Database session.
+
+    Returns:
+        dict: Full project data with sentences, keywords, and speakers.
+
+    Raises:
+        HTTPException: If project not found.
+    """
+    project = db.query(Project).filter(Project.id == project_id).first()
+
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    return project.to_dict(include_sentences=True, include_speakers=True)
+
+
+@router.delete("/{project_id}")
+async def delete_project(
+    project_id: str,
+    db: Session = Depends(get_db),
+) -> JSONResponse:
+    """
+    Delete a project and all associated files.
+
+    Args:
+        project_id: The project UUID.
+        db: Database session.
+
+    Returns:
+        JSONResponse: Success message.
+
+    Raises:
+        HTTPException: If project not found.
+    """
+    project = db.query(Project).filter(Project.id == project_id).first()
+
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Clean up files
+    cleanup_project_files(project.original_file, project.audio_file)
+
+    # Delete project (cascades to sentences and keywords)
+    db.delete(project)
+    db.commit()
+
+    return JSONResponse(
+        content={"message": "Project deleted successfully", "id": project_id}
+    )
+
+
+@router.get("/{project_id}/status", response_model=ProjectStatus)
+async def get_project_status(
+    project_id: str,
+    db: Session = Depends(get_db),
+) -> ProjectStatus:
+    """
+    Get the current processing status of a project.
+
+    Args:
+        project_id: The project UUID.
+        db: Database session.
+
+    Returns:
+        ProjectStatus: Current processing status and progress.
+
+    Raises:
+        HTTPException: If project not found.
+    """
+    project = db.query(Project).filter(Project.id == project_id).first()
+
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    return ProjectStatus(
+        id=project.id,
+        status=project.status,
+        progress=project.progress,
+        current_stage=project.current_stage_description,
+        error_message=project.error_message,
+    )
+
+
+@router.get("/{project_id}/export")
+async def export_project(
+    project_id: str,
+    db: Session = Depends(get_db),
+) -> Response:
+    """
+    Export a project with all sentences and keywords as JSON.
+
+    This endpoint allows exporting project data for backup or sync with Android app.
+    The exported JSON includes all processed data (sentences, translations, explanations, keywords).
+
+    Args:
+        project_id: The project UUID.
+        db: Database session.
+
+    Returns:
+        Response: JSON file download.
+
+    Raises:
+        HTTPException: If project not found.
+    """
+    project = db.query(Project).filter(Project.id == project_id).first()
+
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    sentences = (
+        db.query(Sentence)
+        .filter(Sentence.project_id == project_id)
+        .order_by(Sentence.idx)
+        .all()
+    )
+
+    export_data = {
+        "version": "1.0",
+        "exported_at": datetime.utcnow().isoformat(),
+        "project": {
+            "id": project.id,
+            "name": project.name,
+            "status": project.status,
+            "total_sentences": project.total_sentences,
+            "created_at": project.created_at.isoformat() if project.created_at else None,
+        },
+        "sentences": []
+    }
+
+    for s in sentences:
+        keywords = db.query(Keyword).filter(Keyword.sentence_id == s.id).all()
+        export_data["sentences"].append({
+            "index": s.idx,
+            "text": s.text,
+            "start_time": s.start_time,
+            "end_time": s.end_time,
+            "translation_en": s.translation_en,
+            "explanation_nl": s.explanation_nl,
+            "explanation_en": s.explanation_en,
+            "keywords": [
+                {
+                    "word": k.word,
+                    "meaning_nl": k.meaning_nl,
+                    "meaning_en": k.meaning_en,
+                }
+                for k in keywords
+            ],
+        })
+
+    json_content = json.dumps(export_data, ensure_ascii=False, indent=2)
+    filename = f"{project.name}_export.json"
+
+    return Response(
+        content=json_content,
+        media_type="application/json",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
     )
 
 
