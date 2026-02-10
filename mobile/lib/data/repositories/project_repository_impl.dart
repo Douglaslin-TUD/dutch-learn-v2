@@ -257,15 +257,20 @@ class ProjectRepositoryImpl implements ProjectRepository {
       // Process sentences and keywords
       final sentenceModels = <SentenceModel>[];
       final keywordModels = <KeywordModel>[];
+      final sentenceIdMap = <String, String>{}; // remote ID -> local ID
 
       for (final sentenceJson in sentencesList) {
         final sentenceMap = sentenceJson as Map<String, dynamic>;
         final sentenceId = _uuid.v4();
+        final remoteSentenceId = sentenceMap['id'] as String?;
+        if (remoteSentenceId != null) {
+          sentenceIdMap[remoteSentenceId] = sentenceId;
+        }
 
         final sentence = SentenceModel(
           id: sentenceId,
           projectId: projectId,
-          index: sentenceMap['index'] as int? ?? sentenceModels.length,
+          index: sentenceMap['index'] as int? ?? sentenceMap['idx'] as int? ?? sentenceModels.length,
           text: sentenceMap['text'] as String? ?? '',
           startTime: (sentenceMap['start_time'] as num?)?.toDouble() ?? 0.0,
           endTime: (sentenceMap['end_time'] as num?)?.toDouble() ?? 0.0,
@@ -298,6 +303,23 @@ class ProjectRepositoryImpl implements ProjectRepository {
             keywordModels.add(keyword);
           }
         }
+      }
+
+      // Also import from top-level keywords (desktop format)
+      final topLevelKeywords = jsonData['keywords'] as List<dynamic>? ?? [];
+      for (final kData in topLevelKeywords) {
+        final kMap = kData as Map<String, dynamic>;
+        final remoteSentenceId = kMap['sentence_id'] as String?;
+        if (remoteSentenceId == null) continue;
+        final localSentenceId = sentenceIdMap[remoteSentenceId];
+        if (localSentenceId == null) continue;
+        keywordModels.add(KeywordModel(
+          id: _uuid.v4(),
+          sentenceId: localSentenceId,
+          word: kMap['word'] as String? ?? '',
+          meaningNl: kMap['meaning_nl'] as String? ?? '',
+          meaningEn: kMap['meaning_en'] as String? ?? '',
+        ));
       }
 
       // Batch insert sentences

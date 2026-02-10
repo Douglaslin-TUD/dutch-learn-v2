@@ -306,10 +306,15 @@ class SyncService {
     // Import sentences
     final sentenceModels = <SentenceModel>[];
     final keywordModels = <KeywordModel>[];
+    final sentenceIdMap = <String, String>{}; // remote ID -> local ID
 
     for (final sData in sentencesList) {
       final sMap = sData as Map<String, dynamic>;
       final sentenceId = _uuid.v4();
+      final remoteSentenceId = sMap['id'] as String?;
+      if (remoteSentenceId != null) {
+        sentenceIdMap[remoteSentenceId] = sentenceId;
+      }
 
       // Map remote speaker ID to local speaker ID
       final remoteSpeakerId = sMap['speaker_id'] as String?;
@@ -320,7 +325,7 @@ class SyncService {
       sentenceModels.add(SentenceModel(
         id: sentenceId,
         projectId: projectId,
-        index: sMap['index'] as int? ?? sMap['order'] as int? ?? sentenceModels.length,
+        index: sMap['index'] as int? ?? sMap['idx'] as int? ?? sentenceModels.length,
         text: sMap['text'] as String? ?? '',
         startTime: (sMap['start_time'] as num?)?.toDouble() ?? 0.0,
         endTime: (sMap['end_time'] as num?)?.toDouble() ?? 0.0,
@@ -350,6 +355,24 @@ class SyncService {
           ));
         }
       }
+    }
+
+    // Also import keywords from top-level flat format (desktop compatibility)
+    final topLevelKeywords = data['keywords'] as List<dynamic>? ?? [];
+    for (final kData in topLevelKeywords) {
+      final kMap = kData as Map<String, dynamic>;
+      final remoteSentenceId = kMap['sentence_id'] as String?;
+      if (remoteSentenceId == null) continue;
+      // Map remote sentence_id to local sentence_id
+      final localSentenceId = sentenceIdMap[remoteSentenceId];
+      if (localSentenceId == null) continue;
+      keywordModels.add(KeywordModel(
+        id: _uuid.v4(),
+        sentenceId: localSentenceId,
+        word: kMap['word'] as String? ?? '',
+        meaningNl: kMap['meaning_nl'] as String? ?? '',
+        meaningEn: kMap['meaning_en'] as String? ?? '',
+      ));
     }
 
     await _sentenceDao.insertBatch(sentenceModels);
@@ -447,7 +470,8 @@ class ProgressMerger {
     }
 
     mergedSentences.sort((a, b) =>
-        (a['index'] as int? ?? 0).compareTo(b['index'] as int? ?? 0));
+        (a['index'] as int? ?? a['idx'] as int? ?? 0)
+            .compareTo(b['index'] as int? ?? b['idx'] as int? ?? 0));
 
     merged['sentences'] = mergedSentences;
 
