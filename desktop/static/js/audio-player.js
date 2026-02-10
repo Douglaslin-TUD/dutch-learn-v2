@@ -70,6 +70,9 @@ export class AudioPlayer {
         /** @type {Set<function>} */
         this._errorCallbacks = new Set();
 
+        /** @type {boolean} */
+        this.continuousMode = true;  // Default: continuous playback
+
         this._setupEventListeners();
     }
 
@@ -91,8 +94,13 @@ export class AudioPlayer {
                 if (this.isLooping) {
                     // Loop back to segment start
                     this.audio.currentTime = this.currentSegment.start;
+                } else if (this.continuousMode) {
+                    // Continuous mode: fire segment end but DON'T pause
+                    const endedSegment = this.currentSegment;
+                    this.currentSegment = null;
+                    this._segmentEndCallbacks.forEach(cb => cb(endedSegment));
                 } else {
-                    // Stop at segment end
+                    // Single mode: pause at segment end
                     this.audio.pause();
                     this.audio.currentTime = this.currentSegment.end;
                     this._segmentEndCallbacks.forEach(cb => cb(this.currentSegment));
@@ -316,6 +324,31 @@ export class AudioPlayer {
      */
     getLoop() {
         return this.isLooping;
+    }
+
+    /**
+     * Set continuous playback mode.
+     * @param {boolean} enabled
+     */
+    setContinuousMode(enabled) {
+        this.continuousMode = enabled;
+    }
+
+    /**
+     * Toggle continuous playback mode.
+     * @returns {boolean} New state
+     */
+    toggleContinuousMode() {
+        this.continuousMode = !this.continuousMode;
+        return this.continuousMode;
+    }
+
+    /**
+     * Check if continuous mode is enabled.
+     * @returns {boolean}
+     */
+    getContinuousMode() {
+        return this.continuousMode;
     }
 
     /**
