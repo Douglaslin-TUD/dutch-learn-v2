@@ -198,3 +198,115 @@ class TestExportProject:
         assert response.status_code == 200
         assert "Content-Disposition" in response.headers
         assert "attachment" in response.headers["Content-Disposition"]
+
+
+class TestDifficultSentenceEndpoints:
+    """Tests for difficult sentence toggle, listing, and review endpoints."""
+
+    def test_toggle_difficult_on(self, client, make_project, make_sentence):
+        """PUT toggle endpoint should mark a sentence as difficult."""
+        project = make_project()
+        sentence = make_sentence(project.id, idx=0, text="Dit is moeilijk")
+
+        response = client.put(
+            f"/api/projects/{project.id}/sentences/{sentence.id}/difficult"
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["is_difficult"] is True
+
+    def test_toggle_difficult_off(self, client, db, make_project, make_sentence):
+        """PUT toggle endpoint should unmark a sentence that is already difficult."""
+        project = make_project()
+        sentence = make_sentence(project.id, idx=0, text="Dit is moeilijk")
+
+        # Set is_difficult=True directly in the database first
+        sentence.is_difficult = True
+        db.commit()
+
+        response = client.put(
+            f"/api/projects/{project.id}/sentences/{sentence.id}/difficult"
+        )
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["success"] is True
+        assert data["is_difficult"] is False
+
+    def test_toggle_difficult_not_found(self, client, make_project):
+        """PUT toggle endpoint should return 404 for nonexistent sentence."""
+        project = make_project()
+        fake_id = str(uuid.uuid4())
+
+        response = client.put(
+            f"/api/projects/{project.id}/sentences/{fake_id}/difficult"
+        )
+
+        assert response.status_code == 404
+
+    def test_get_difficult_sentences(self, client, db, make_project, make_sentence):
+        """GET difficult endpoint should return only sentences marked as difficult."""
+        project = make_project()
+        s1 = make_sentence(project.id, idx=0, text="Makkelijk")
+        s2 = make_sentence(project.id, idx=1, text="Moeilijk een")
+        s3 = make_sentence(project.id, idx=2, text="Moeilijk twee")
+
+        # Mark only s2 and s3 as difficult
+        s2.is_difficult = True
+        s3.is_difficult = True
+        db.commit()
+
+        response = client.get(f"/api/projects/{project.id}/difficult")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert len(data["sentences"]) == 2
+        texts = {s["text"] for s in data["sentences"]}
+        assert texts == {"Moeilijk een", "Moeilijk twee"}
+
+    def test_get_difficult_sentences_empty(self, client, make_project, make_sentence):
+        """GET difficult endpoint should return empty list when no sentences are difficult."""
+        project = make_project()
+        make_sentence(project.id, idx=0, text="Makkelijk")
+
+        response = client.get(f"/api/projects/{project.id}/difficult")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["sentences"] == []
+
+    def test_record_review(self, client, make_project, make_sentence):
+        """POST review endpoint should increment review_count on consecutive reviews."""
+        project = make_project()
+        sentence = make_sentence(project.id, idx=0, text="Oefenzin")
+
+        # First review
+        response1 = client.post(
+            f"/api/projects/{project.id}/sentences/{sentence.id}/review"
+        )
+        assert response1.status_code == 200
+        data1 = response1.json()
+        assert data1["success"] is True
+        assert data1["review_count"] == 1
+
+        # Second review
+        response2 = client.post(
+            f"/api/projects/{project.id}/sentences/{sentence.id}/review"
+        )
+        assert response2.status_code == 200
+        data2 = response2.json()
+        assert data2["success"] is True
+        assert data2["review_count"] == 2
+
+    def test_record_review_not_found(self, client, make_project):
+        """POST review endpoint should return 404 for nonexistent sentence."""
+        project = make_project()
+        fake_id = str(uuid.uuid4())
+
+        response = client.post(
+            f"/api/projects/{project.id}/sentences/{fake_id}/review"
+        )
+
+        assert response.status_code == 404
