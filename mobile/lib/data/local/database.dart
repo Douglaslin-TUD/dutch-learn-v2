@@ -29,6 +29,9 @@ class AppDatabase {
     return openDatabase(
       path,
       version: AppConstants.databaseVersion,
+      onConfigure: (db) async {
+        await db.execute('PRAGMA foreign_keys = ON');
+      },
       onCreate: _onCreate,
       onUpgrade: _onUpgrade,
     );

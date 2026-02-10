@@ -101,6 +101,9 @@ class ProjectRepositoryImpl implements ProjectRepository {
       // Delete keywords
       await _keywordDao.deleteByProjectId(id);
 
+      // Delete speakers
+      await _speakerDao.deleteByProjectId(id);
+
       // Delete sentences
       await _sentenceDao.deleteByProjectId(id);
 
