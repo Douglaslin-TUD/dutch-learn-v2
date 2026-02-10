@@ -326,11 +326,13 @@ class SyncService:
             keyword_map.setdefault(k.sentence_id, []).append(k)
 
         return {
-            'id': project.id,
-            'name': project.name,
-            'status': project.status,
-            'created_at': project.created_at.isoformat() if project.created_at else None,
-            'updated_at': project.updated_at.isoformat() if project.updated_at else None,
+            'project': {
+                'id': project.id,
+                'name': project.name,
+                'status': project.status,
+                'created_at': project.created_at.isoformat() if project.created_at else None,
+                'updated_at': project.updated_at.isoformat() if project.updated_at else None,
+            },
             'speakers': [
                 {
                     'id': sp.id,
@@ -498,15 +500,17 @@ class SyncService:
         from app.models import Project, Sentence, Keyword, Speaker
         from datetime import datetime
 
-        project_id = data['id']
+        # Support both nested {"project": {...}} and flat {"id": ...} formats
+        project_data = data.get('project', data)
+        project_id = project_data['id']
         sentences_data = data.get('sentences', [])
 
         # Parse created_at/updated_at from data if available
         created_at = None
-        if data.get('created_at'):
+        if project_data.get('created_at'):
             try:
                 created_at = datetime.fromisoformat(
-                    data['created_at'].replace('Z', '+00:00')
+                    project_data['created_at'].replace('Z', '+00:00')
                 )
                 if created_at.tzinfo is not None:
                     created_at = created_at.replace(tzinfo=None)
@@ -519,9 +523,9 @@ class SyncService:
             num_sentences = len(sentences_data)
             project = Project(
                 id=project_id,
-                name=data.get('name', project_id),
-                status=data.get('status', 'ready'),
-                original_file=data.get('original_file', 'synced'),
+                name=project_data.get('name', project_id),
+                status=project_data.get('status', 'ready'),
+                original_file=project_data.get('original_file', 'synced'),
                 total_sentences=num_sentences,
                 processed_sentences=num_sentences,
             )
@@ -529,8 +533,8 @@ class SyncService:
                 project.created_at = created_at
             db.add(project)
         else:
-            project.name = data.get('name', project.name)
-            project.status = data.get('status', project.status)
+            project.name = project_data.get('name', project.name)
+            project.status = project_data.get('status', project.status)
 
         # Import speakers
         for sp_data in data.get('speakers', []):
