@@ -1092,9 +1092,9 @@ function renderLearnInterface(project) {
                     <p class="text-xs text-gray-500 mb-1">${escapeHtml(speakerName)}</p>
                     <p class="text-gray-700 text-sm leading-relaxed sentence-text">${escapeHtml(sentence.text)}</p>
                 </div>
-                <span class="bookmark-btn flex-shrink-0 p-1 rounded hover:bg-gray-200 transition-colors ${sentence.is_difficult ? 'text-amber-500' : 'text-gray-300'}"
-                      data-sentence-id="${sentence.id}" data-index="${index}">
-                    <svg class="w-4 h-4" fill="${sentence.is_difficult ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24">
+                <span class="bookmark-btn flex-shrink-0 p-2 rounded-full hover:bg-gray-200 transition-colors cursor-pointer ${sentence.is_difficult ? 'text-amber-500' : 'text-gray-400 hover:text-gray-600'}"
+                      data-sentence-id="${sentence.id}" data-index="${index}" title="Toggle bookmark">
+                    <svg class="w-5 h-5" fill="${sentence.is_difficult ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path>
                     </svg>
                 </span>
@@ -1143,6 +1143,15 @@ function renderLearnInterface(project) {
                         </svg>
                     </button>
 
+                    <!-- Continuous Mode Button -->
+                    <button id="continuous-btn" class="flex-shrink-0 p-2 rounded-lg text-primary-600 hover:bg-gray-100 transition-colors"
+                            title="Continuous playback ON (C)">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                                  d="M4 6h16M4 10h16M4 14h16M4 18h16"></path>
+                        </svg>
+                    </button>
+
                     <!-- Speed Control -->
                     <div class="relative">
                         <button id="speed-btn" class="flex-shrink-0 px-3 py-2 rounded-lg text-gray-600 hover:bg-gray-100
@@ -1187,25 +1196,32 @@ function renderLearnInterface(project) {
                         </div>
                     </div>
 
-                    <!-- Speaker Panel -->
+                    <!-- Speaker Panel (collapsible) -->
                     ${(project.speakers && project.speakers.length > 0) ? `
-                    <div class="p-4 border-b border-gray-200 flex-shrink-0">
-                        <h4 class="text-sm font-semibold text-gray-700 mb-3">Speakers</h4>
-                        <div id="speakers-list" class="flex flex-wrap gap-2">
-                            ${project.speakers.map(speaker => `
-                                <div class="speaker-chip flex items-center gap-2 px-3 py-1.5 rounded-full ${getSpeakerColor(speaker.label)} bg-opacity-10 border border-current"
-                                     data-speaker-id="${speaker.id}">
-                                    <span class="w-5 h-5 rounded-full ${getSpeakerColor(speaker.label)} text-white text-xs flex items-center justify-center">
-                                        ${speaker.label}
-                                    </span>
-                                    <input type="text"
-                                           class="speaker-name-input bg-transparent border-none text-sm text-gray-700 w-24 focus:outline-none focus:ring-1 focus:ring-primary-300 rounded"
-                                           value="${escapeHtml(speaker.display_name || `Speaker ${speaker.label}`)}"
-                                           data-speaker-id="${speaker.id}"
-                                           data-original="${escapeHtml(speaker.display_name || '')}">
-                                    ${speaker.is_manual ? '<span class="text-xs text-gray-400">&#10003;</span>' : ''}
-                                </div>
-                            `).join('')}
+                    <div class="border-b border-gray-200 flex-shrink-0">
+                        <button id="speakers-toggle" class="w-full px-4 py-2 flex items-center justify-between text-sm font-semibold text-gray-700 hover:bg-gray-50 transition-colors">
+                            <span>Speakers (${project.speakers.length})</span>
+                            <svg id="speakers-arrow" class="w-4 h-4 text-gray-400 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                            </svg>
+                        </button>
+                        <div id="speakers-panel" class="hidden px-4 pb-3">
+                            <div id="speakers-list" class="flex flex-wrap gap-2">
+                                ${project.speakers.map(speaker => `
+                                    <div class="speaker-chip flex items-center gap-2 px-3 py-1.5 rounded-full ${getSpeakerColor(speaker.label)} bg-opacity-10 border border-current"
+                                         data-speaker-id="${speaker.id}">
+                                        <span class="w-5 h-5 rounded-full ${getSpeakerColor(speaker.label)} text-white text-xs flex items-center justify-center">
+                                            ${speaker.label}
+                                        </span>
+                                        <input type="text"
+                                               class="speaker-name-input bg-transparent border-none text-sm text-gray-700 w-24 focus:outline-none focus:ring-1 focus:ring-primary-300 rounded"
+                                               value="${escapeHtml(speaker.display_name || `Speaker ${speaker.label}`)}"
+                                               data-speaker-id="${speaker.id}"
+                                               data-original="${escapeHtml(speaker.display_name || '')}">
+                                        ${speaker.is_manual ? '<span class="text-xs text-gray-400">&#10003;</span>' : ''}
+                                    </div>
+                                `).join('')}
+                            </div>
                         </div>
                     </div>
                     ` : ''}
@@ -1233,6 +1249,8 @@ function renderLearnInterface(project) {
                 <span class="inline-flex items-center px-2 py-1 bg-gray-100 rounded text-xs font-mono mr-2">Left/Right</span> Prev/Next Sentence
                 <span class="mx-4">|</span>
                 <span class="inline-flex items-center px-2 py-1 bg-gray-100 rounded text-xs font-mono mr-2">L</span> Toggle Loop
+                <span class="mx-4">|</span>
+                <span class="inline-flex items-center px-2 py-1 bg-gray-100 rounded text-xs font-mono mr-2">C</span> Continuous Play
             </div>
         </div>
     `;
@@ -1420,7 +1438,19 @@ function setupLearnHandlers(project) {
     const speedBtn = document.getElementById('speed-btn');
     const speedMenu = document.getElementById('speed-menu');
     const sentencesList = document.getElementById('sentences-list');
+
+    // Speakers panel toggle
+    const speakersToggle = document.getElementById('speakers-toggle');
+    const speakersPanel = document.getElementById('speakers-panel');
+    const speakersArrow = document.getElementById('speakers-arrow');
+    if (speakersToggle) {
+        speakersToggle.addEventListener('click', () => {
+            speakersPanel.classList.toggle('hidden');
+            speakersArrow.classList.toggle('rotate-180');
+        });
+    }
     const detailPanel = document.getElementById('detail-panel');
+    const continuousBtn = document.getElementById('continuous-btn');
 
     // Initialize audio player
     const player = new AudioPlayer(audioElement);
@@ -1465,6 +1495,45 @@ function setupLearnHandlers(project) {
         // }
     });
 
+    // Continuous mode: track which sentence is playing by time
+    player.onTimeUpdate((currentTime) => {
+        if (!player.getContinuousMode() || !player.isPlaying()) return;
+        if (player.getCurrentSegment()) return;  // Still in a segment, wait for it to end
+
+        // Find which sentence contains the current time
+        const activeIdx = project.sentences.findIndex((s, i) => {
+            const next = project.sentences[i + 1];
+            return currentTime >= s.start_time && currentTime < (next ? next.start_time : s.end_time + 1);
+        });
+
+        if (activeIdx >= 0 && activeIdx !== AppState.selectedSentenceIndex) {
+            // Update highlight and detail panel without restarting playback
+            const sentence = project.sentences[activeIdx];
+            AppState.setState({ selectedSentence: sentence, selectedSentenceIndex: activeIdx });
+
+            sentencesList.querySelectorAll('.sentence-item').forEach((item, i) => {
+                if (i === activeIdx) {
+                    item.classList.add('bg-primary-50', 'border-l-4', 'border-l-primary-500');
+                    item.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                } else {
+                    item.classList.remove('bg-primary-50', 'border-l-4', 'border-l-primary-500');
+                }
+            });
+
+            detailPanel.innerHTML = renderSentenceDetail(sentence);
+            setupWordTooltips();
+        }
+    });
+
+    // Continuous mode toggle button
+    continuousBtn.addEventListener('click', () => {
+        const enabled = player.toggleContinuousMode();
+        continuousBtn.classList.toggle('text-primary-600', enabled);
+        continuousBtn.classList.toggle('text-gray-500', !enabled);
+        continuousBtn.title = enabled ? 'Continuous playback ON (C)' : 'Single sentence mode (C)';
+        showToast(enabled ? 'Continuous playback' : 'Single sentence mode', 'info', 1500);
+    });
+
     // Play button click
     playBtn.addEventListener('click', () => {
         if (player.isPlaying()) {
@@ -1472,7 +1541,13 @@ function setupLearnHandlers(project) {
         } else {
             const sentence = AppState.selectedSentence;
             if (sentence) {
-                player.playSegment(sentence.start_time, sentence.end_time);
+                if (player.getContinuousMode()) {
+                    player.clearSegment();
+                    player.seek(sentence.start_time);
+                    player.play();
+                } else {
+                    player.playSegment(sentence.start_time, sentence.end_time);
+                }
             }
         }
     });
@@ -1539,7 +1614,7 @@ function setupLearnHandlers(project) {
                 project.sentences[idx].is_difficult = result.is_difficult;
                 const svg = bookmarkBtn.querySelector('svg');
                 bookmarkBtn.classList.toggle('text-amber-500', result.is_difficult);
-                bookmarkBtn.classList.toggle('text-gray-300', !result.is_difficult);
+                bookmarkBtn.classList.toggle('text-gray-400', !result.is_difficult);
                 svg.setAttribute('fill', result.is_difficult ? 'currentColor' : 'none');
             } catch (err) {
                 showToast('Failed to toggle bookmark', 'error');
@@ -1620,8 +1695,14 @@ function setupLearnHandlers(project) {
         // Setup tooltip handlers for hoverable words
         setupWordTooltips();
 
-        // Play the segment
-        player.playSegment(sentence.start_time, sentence.end_time);
+        // Play the segment (respect continuous mode)
+        if (player.getContinuousMode()) {
+            player.clearSegment();
+            player.seek(sentence.start_time);
+            player.play();
+        } else {
+            player.playSegment(sentence.start_time, sentence.end_time);
+        }
     }
 
     /**
@@ -1712,7 +1793,13 @@ function setupLearnHandlers(project) {
                 } else {
                     const sentence = AppState.selectedSentence;
                     if (sentence) {
-                        player.playSegment(sentence.start_time, sentence.end_time);
+                        if (player.getContinuousMode()) {
+                            player.clearSegment();
+                            player.seek(sentence.start_time);
+                            player.play();
+                        } else {
+                            player.playSegment(sentence.start_time, sentence.end_time);
+                        }
                     }
                 }
                 break;
@@ -1734,6 +1821,11 @@ function setupLearnHandlers(project) {
             case 'KeyL':
                 e.preventDefault();
                 loopBtn.click();
+                break;
+
+            case 'KeyC':
+                e.preventDefault();
+                continuousBtn.click();
                 break;
         }
     }
