@@ -23,6 +23,25 @@ def _make_utterance(text: str, start: float = 0.0, speaker: str = "A") -> Uttera
     return UtteranceInfo(text=text, start=start, end=end, speaker_label=speaker, words=words)
 
 
+def _make_utterance_with_fewer_words(
+    text: str, skip_indices: list[int], start: float = 0.0, speaker: str = "A"
+) -> UtteranceInfo:
+    """Helper: create UtteranceInfo where words list has fewer entries than text.split().
+
+    Simulates AssemblyAI returning fewer word timestamps than text tokens,
+    e.g. due to time-overlap filtering missing some words.
+    """
+    words = []
+    t = start
+    for i, w in enumerate(text.split()):
+        if i in skip_indices:
+            continue
+        words.append(WordTimestamp(text=w, start=round(t, 3), end=round(t + 0.3, 3)))
+        t += 0.35
+    end = words[-1].end if words else start
+    return UtteranceInfo(text=text, start=start, end=end, speaker_label=speaker, words=words)
+
+
 class TestSentenceSplitter:
     """Tests for the SentenceSplitter class."""
 
@@ -79,7 +98,8 @@ class TestSentenceSplitter:
 
     def test_no_split_on_abbreviation(self, splitter):
         """Should NOT split on abbreviation periods (no uppercase after)."""
-        text = "Ik ga naar de d.w.z. winkel om boodschappen te doen vandaag"
+        # Use 9 words to stay under max_words=10 (avoids hard-split interference)
+        text = "Ik ga naar de d.w.z. winkel om boodschappen"
         utt = _make_utterance(text)
         result = splitter.split_utterances([utt])
         assert len(result) == 1
@@ -119,13 +139,45 @@ class TestSentenceSplitter:
     # --- Short segment merging ---
 
     def test_short_segment_merged_back(self, splitter):
-        """Segments with <3 words should be merged with adjacent segment."""
-        text = "Ja. Een twee drie vier vijf zes zeven acht negen tien twaalf."
+        """Segments with <3 words should be merged if neighbor has room."""
+        # "Ja." (1 word) + 8-word sentence = 9 words after merge, under max_words=10
+        text = "Ja. Een twee drie vier vijf zes zeven acht. Negen tien elf twaalf."
         utt = _make_utterance(text)
         result = splitter.split_utterances([utt])
-        # "Ja." is only 1 word, should be merged with next segment
+        # "Ja." should be merged with next (8 words -> 9 words, under max_words)
         for r in result:
             assert len(r.text.split()) >= 3
+
+    def test_merge_does_not_exceed_max_words(self, splitter):
+        """Merging short segments must not create segments exceeding max_words."""
+        # "Ja." (1 word) + 10-word sentence + 10-word sentence = 21 words
+        # Without the fix, "Ja." merges into the 10-word segment making 11 words
+        text = (
+            "Ja. Een twee drie vier vijf zes zeven acht negen tien. "
+            "Elf twaalf dertien veertien vijftien zestien zeventien achttien negentien twintig."
+        )
+        utt = _make_utterance(text)
+        result = splitter.split_utterances([utt])
+        for r in result:
+            assert len(r.text.split()) <= splitter.max_words, (
+                f"Segment has {len(r.text.split())} words, exceeds max_words={splitter.max_words}: {r.text!r}"
+            )
+
+    def test_merge_short_segment_kept_when_neighbors_full(self, splitter):
+        """Short segment should be kept as-is if merging would exceed max_words."""
+        text = (
+            "Aaa bbb ccc ddd eee fff ggg hhh iii jjj. "
+            "Ok. "
+            "Kkk lll mmm nnn ooo ppp qqq rrr sss ttt."
+        )
+        utt = _make_utterance(text)
+        result = splitter.split_utterances([utt])
+        # "Ok." is 1 word. First seg is 10, last seg is 10.
+        # Merging "Ok." into either would make 11 > max_words=10.
+        # So "Ok." should be kept as standalone segment.
+        assert any(r.text == "Ok." for r in result), (
+            f"Expected standalone 'Ok.' segment but got: {[r.text for r in result]}"
+        )
 
     # --- Timestamp precision ---
 
@@ -179,3 +231,64 @@ class TestSentenceSplitter:
             words_text = " ".join(w.text for w in r.words)
             # Strip punctuation for comparison
             assert len(words_text.split()) == len(r.text.split())
+
+    # --- Word count mismatch (C3 concern) ---
+
+    def test_word_count_mismatch_no_drift(self, splitter):
+        """When words list has fewer entries than text.split(), timestamps should not drift.
+
+        This tests the C3 concern: AssemblyAI's word timestamps may not match
+        Python's str.split() tokenization, causing word-to-segment misalignment.
+        """
+        text = "Een twee drie vier vijf zes. Zeven acht negen tien elf twaalf."
+        # Skip words at indices 3 and 7 to simulate AssemblyAI missing some words
+        utt = _make_utterance_with_fewer_words(text, skip_indices=[3, 7])
+
+        assert len(utt.words) == 10  # 12 - 2 skipped
+        assert len(text.split()) == 12
+
+        result = splitter.split_utterances([utt])
+        assert len(result) == 2
+
+        # The last segment should get all remaining words (not have them stolen by first)
+        # With the fix, the last segment gets leftover words instead of
+        # being short-changed by strict text.split() counting
+        total_words_assigned = sum(len(r.words) for r in result)
+        assert total_words_assigned == len(utt.words), (
+            f"Total words assigned ({total_words_assigned}) != original words ({len(utt.words)})"
+        )
+
+    def test_word_count_mismatch_last_segment_gets_remainder(self, splitter):
+        """Last segment should receive all remaining word timestamps."""
+        text = "Een twee drie vier vijf zes. Zeven acht negen tien elf twaalf."
+        # Create utterance with only 8 word timestamps (4 missing)
+        utt = _make_utterance_with_fewer_words(text, skip_indices=[2, 4, 8, 10])
+
+        assert len(utt.words) == 8
+        result = splitter.split_utterances([utt])
+        assert len(result) == 2
+
+        # Last segment should have remaining words, not be empty
+        assert len(result[-1].words) > 0
+
+    # --- Empty words list ---
+
+    def test_empty_words_list_uses_fallback_timestamps(self, splitter):
+        """Utterance with empty words list should use original start/end as fallback."""
+        text = "Een twee drie vier vijf zes. Zeven acht negen tien elf twaalf."
+        utt = UtteranceInfo(
+            text=text, start=1.0, end=5.0, speaker_label="A", words=[]
+        )
+        result = splitter.split_utterances([utt])
+        # With empty words, all segments should fall back to original timestamps
+        assert result[0].start == 1.0
+        assert result[-1].end == 5.0
+
+    # --- Single word utterance ---
+
+    def test_single_word_utterance_unchanged(self, splitter):
+        """Single word utterance should pass through unchanged."""
+        utt = _make_utterance("Ja")
+        result = splitter.split_utterances([utt])
+        assert len(result) == 1
+        assert result[0].text == "Ja"

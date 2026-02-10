@@ -156,6 +156,8 @@ class SentenceSplitter:
         """
         Merge segments with fewer than MIN_SEGMENT_WORDS into neighbors.
 
+        Only merges if the combined segment would not exceed max_words.
+
         Args:
             segments: List of text segments to merge.
 
@@ -170,13 +172,14 @@ class SentenceSplitter:
         while i < len(segments):
             seg = segments[i]
             if len(seg.split()) < MIN_SEGMENT_WORDS:
-                if merged:
-                    # Merge with previous
+                if merged and len(merged[-1].split()) + len(seg.split()) <= self.max_words:
+                    # Merge with previous if it won't exceed max_words
                     merged[-1] = merged[-1] + " " + seg
-                elif i + 1 < len(segments):
-                    # Merge with next
+                elif i + 1 < len(segments) and len(seg.split()) + len(segments[i + 1].split()) <= self.max_words:
+                    # Merge with next if it won't exceed max_words
                     segments[i + 1] = seg + " " + segments[i + 1]
                 else:
+                    # Can't merge without exceeding max_words, keep as-is
                     merged.append(seg)
             else:
                 merged.append(seg)
@@ -190,6 +193,9 @@ class SentenceSplitter:
         """
         Map text segments back to UtteranceInfo objects with word timestamps.
 
+        Uses text matching to align words to segments, avoiding drift when
+        the words list count differs from text.split() count.
+
         Args:
             texts: List of text segments from splitting.
             original: The original UtteranceInfo being split.
@@ -201,12 +207,24 @@ class SentenceSplitter:
         utterances: List[UtteranceInfo] = []
         word_idx = 0
 
-        for text in texts:
+        for seg_idx, text in enumerate(texts):
             seg_word_count = len(text.split())
 
-            # Get the words for this segment
-            seg_words = words[word_idx:word_idx + seg_word_count]
-            word_idx += seg_word_count
+            # Match words from the words list to this segment by counting
+            # how many word timestamps to consume. Use the smaller of
+            # seg_word_count and remaining words to prevent over-indexing.
+            remaining_words = len(words) - word_idx
+            remaining_segments = len(texts) - seg_idx
+
+            if remaining_segments == 1:
+                # Last segment gets all remaining words
+                consume = remaining_words
+            else:
+                # Consume based on text word count, but cap at remaining
+                consume = min(seg_word_count, remaining_words)
+
+            seg_words = words[word_idx:word_idx + consume]
+            word_idx += consume
 
             if seg_words:
                 start = seg_words[0].start

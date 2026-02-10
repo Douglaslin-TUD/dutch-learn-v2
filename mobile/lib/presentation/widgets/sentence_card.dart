@@ -128,13 +128,19 @@ class SentenceCard extends StatelessWidget {
                   Icons.play_arrow,
                   color: Colors.green,
                 ),
-              // Bookmark icon
+              // Bookmark icon with adequate tap target
               if (onBookmarkTap != null)
-                GestureDetector(
-                  onTap: onBookmarkTap,
-                  child: Padding(
-                    padding: const EdgeInsets.only(left: 4),
-                    child: Icon(
+                SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: IconButton(
+                    onPressed: onBookmarkTap,
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 40,
+                      minHeight: 40,
+                    ),
+                    icon: Icon(
                       sentence.isDifficult
                           ? Icons.bookmark
                           : Icons.bookmark_border,
@@ -224,11 +230,17 @@ class SentenceListItem extends StatelessWidget {
           if (isPlaying)
             const Icon(Icons.volume_up, color: Colors.green, size: 20),
           if (onBookmarkTap != null)
-            GestureDetector(
-              onTap: onBookmarkTap,
-              child: Padding(
-                padding: const EdgeInsets.only(left: 4),
-                child: Icon(
+            SizedBox(
+              width: 40,
+              height: 40,
+              child: IconButton(
+                onPressed: onBookmarkTap,
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(
+                  minWidth: 40,
+                  minHeight: 40,
+                ),
+                icon: Icon(
                   sentence.isDifficult
                       ? Icons.bookmark
                       : Icons.bookmark_border,

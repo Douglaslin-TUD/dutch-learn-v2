@@ -38,7 +38,9 @@ class SyncService:
     """
 
     def __init__(self):
-        self.base_dir = Path(settings.base_dir)
+        # Derive base_dir from database_url (strip sqlite:/// prefix and get parent)
+        db_path = settings.database_url.replace("sqlite:///", "")
+        self.base_dir = Path(db_path).parent
         self.credentials_file = self.base_dir / 'credentials.json'
         self.token_file = self.base_dir / 'token.pickle'
         self.export_dir = self.base_dir / 'export_for_drive'
@@ -497,15 +499,34 @@ class SyncService:
         from datetime import datetime
 
         project_id = data['id']
+        sentences_data = data.get('sentences', [])
+
+        # Parse created_at/updated_at from data if available
+        created_at = None
+        if data.get('created_at'):
+            try:
+                created_at = datetime.fromisoformat(
+                    data['created_at'].replace('Z', '+00:00')
+                )
+                if created_at.tzinfo is not None:
+                    created_at = created_at.replace(tzinfo=None)
+            except (ValueError, TypeError):
+                pass
 
         # Get or create project
         project = db.query(Project).filter(Project.id == project_id).first()
         if not project:
+            num_sentences = len(sentences_data)
             project = Project(
                 id=project_id,
                 name=data.get('name', project_id),
                 status=data.get('status', 'ready'),
+                original_file=data.get('original_file', 'synced'),
+                total_sentences=num_sentences,
+                processed_sentences=num_sentences,
             )
+            if created_at:
+                project.created_at = created_at
             db.add(project)
         else:
             project.name = data.get('name', project.name)
@@ -532,7 +553,7 @@ class SyncService:
                 db.add(speaker)
 
         # Update sentences
-        for s_data in data.get('sentences', []):
+        for s_data in sentences_data:
             sentence = db.query(Sentence).filter(Sentence.id == s_data['id']).first()
             if sentence:
                 # Update learning progress
@@ -555,6 +576,18 @@ class SyncService:
                     except (ValueError, TypeError):
                         pass
             else:
+                # Parse last_reviewed and strip timezone for consistency
+                last_reviewed = None
+                if s_data.get('last_reviewed'):
+                    try:
+                        last_reviewed = datetime.fromisoformat(
+                            s_data['last_reviewed'].replace('Z', '+00:00')
+                        )
+                        if last_reviewed.tzinfo is not None:
+                            last_reviewed = last_reviewed.replace(tzinfo=None)
+                    except (ValueError, TypeError):
+                        pass
+
                 sentence = Sentence(
                     id=s_data['id'],
                     project_id=project_id,
@@ -570,9 +603,13 @@ class SyncService:
                     learn_count=s_data.get('learn_count', 0),
                     is_difficult=s_data.get('is_difficult', False),
                     review_count=s_data.get('review_count', 0),
-                    last_reviewed=datetime.fromisoformat(s_data['last_reviewed'].replace('Z', '+00:00')) if s_data.get('last_reviewed') else None,
+                    last_reviewed=last_reviewed,
                 )
                 db.add(sentence)
+
+        # Track words already imported per sentence to avoid duplicates
+        # between top-level and nested keyword formats
+        imported_keywords = set()  # (sentence_id, word) pairs
 
         # Update keywords (top-level format)
         for k_data in data.get('keywords', []):
@@ -586,28 +623,34 @@ class SyncService:
                     meaning_en=k_data.get('meaning_en'),
                 )
                 db.add(keyword)
+            # Track this keyword so we skip it in nested import
+            sid = k_data.get('sentence_id')
+            if sid:
+                imported_keywords.add((sid, k_data['word']))
 
         # Import keywords from sentences (nested format)
-        for s_data in data.get('sentences', []):
+        for s_data in sentences_data:
             sentence_id = s_data['id']
-            # Check if this sentence exists locally
-            sentence = db.query(Sentence).filter(Sentence.id == sentence_id).first()
-            if sentence:
-                for k_data in s_data.get('keywords', []):
-                    # Check by word + sentence_id to avoid duplicates
-                    existing = db.query(Keyword).filter(
-                        Keyword.sentence_id == sentence_id,
-                        Keyword.word == k_data.get('word', ''),
-                    ).first()
-                    if not existing:
-                        keyword = Keyword(
-                            id=str(_uuid.uuid4()),
-                            sentence_id=sentence_id,
-                            word=k_data.get('word', ''),
-                            meaning_nl=k_data.get('meaning_nl'),
-                            meaning_en=k_data.get('meaning_en'),
-                        )
-                        db.add(keyword)
+            for k_data in s_data.get('keywords', []):
+                word = k_data.get('word', '')
+                # Skip if already imported from top-level keywords
+                if (sentence_id, word) in imported_keywords:
+                    continue
+                # Check by word + sentence_id to avoid duplicates with existing DB data
+                existing = db.query(Keyword).filter(
+                    Keyword.sentence_id == sentence_id,
+                    Keyword.word == word,
+                ).first()
+                if not existing:
+                    keyword = Keyword(
+                        id=str(_uuid.uuid4()),
+                        sentence_id=sentence_id,
+                        word=word,
+                        meaning_nl=k_data.get('meaning_nl'),
+                        meaning_en=k_data.get('meaning_en'),
+                    )
+                    db.add(keyword)
+                    imported_keywords.add((sentence_id, word))
 
         db.commit()
 

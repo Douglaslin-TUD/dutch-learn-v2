@@ -158,9 +158,7 @@ class SyncService {
           final localProject = await _projectDao.getBySourceId(projectId);
 
           if (localProject != null) {
-            final localData = await exportProject(localProject.id);
-            final mergedData = ProgressMerger.merge(localData, remoteData);
-            await _importMergedProgress(localProject.id, mergedData);
+            await _mergeRemoteProgress(localProject.id, remoteData);
             result.merged.add(projectId);
           } else {
             await _importNewProject(projectId, remoteData);
@@ -307,6 +305,8 @@ class SyncService {
     final sentenceModels = <SentenceModel>[];
     final keywordModels = <KeywordModel>[];
     final sentenceIdMap = <String, String>{}; // remote ID -> local ID
+    // Track which sentences already have nested keywords to avoid duplicates
+    final sentencesWithNestedKeywords = <String>{};
 
     for (final sData in sentencesList) {
       final sMap = sData as Map<String, dynamic>;
@@ -343,7 +343,10 @@ class SyncService {
       ));
 
       final keywords = sMap['keywords'] as List<dynamic>?;
-      if (keywords != null) {
+      if (keywords != null && keywords.isNotEmpty) {
+        if (remoteSentenceId != null) {
+          sentencesWithNestedKeywords.add(remoteSentenceId);
+        }
         for (final kData in keywords) {
           final kMap = kData as Map<String, dynamic>;
           keywordModels.add(KeywordModel(
@@ -357,12 +360,16 @@ class SyncService {
       }
     }
 
-    // Also import keywords from top-level flat format (desktop compatibility)
+    // Also import keywords from top-level flat format (desktop compatibility).
+    // Skip sentences that already had nested keywords to avoid duplicates,
+    // since desktop exports include keywords in both locations.
     final topLevelKeywords = data['keywords'] as List<dynamic>? ?? [];
     for (final kData in topLevelKeywords) {
       final kMap = kData as Map<String, dynamic>;
       final remoteSentenceId = kMap['sentence_id'] as String?;
       if (remoteSentenceId == null) continue;
+      // Skip if this sentence already had nested keywords imported
+      if (sentencesWithNestedKeywords.contains(remoteSentenceId)) continue;
       // Map remote sentence_id to local sentence_id
       final localSentenceId = sentenceIdMap[remoteSentenceId];
       if (localSentenceId == null) continue;
@@ -379,36 +386,72 @@ class SyncService {
     await _keywordDao.insertBatch(keywordModels);
   }
 
-  /// Merges learning progress into an existing local project.
-  Future<void> _importMergedProgress(
+  /// Merges remote learning progress into an existing local project.
+  ///
+  /// Matches sentences by index (not by ID) because local and remote
+  /// use different UUIDs for the same sentences.
+  Future<void> _mergeRemoteProgress(
     String localProjectId,
-    Map<String, dynamic> mergedData,
+    Map<String, dynamic> remoteData,
   ) async {
-    final sentencesList = mergedData['sentences'] as List<dynamic>? ?? [];
+    // Extract remote sentences list from either wrapped or flat format
+    final List<dynamic> remoteSentencesList;
+    if (remoteData.containsKey('project') && remoteData.containsKey('sentences')) {
+      remoteSentencesList = remoteData['sentences'] as List<dynamic>? ?? [];
+    } else {
+      remoteSentencesList = remoteData['sentences'] as List<dynamic>? ?? [];
+    }
+
     final localSentences = await _sentenceDao.getByProjectId(localProjectId);
-    final localById = {for (var s in localSentences) s.id: s};
+    final localByIndex = {for (var s in localSentences) s.index: s};
 
-    for (final sData in sentencesList) {
+    for (final sData in remoteSentencesList) {
       final sMap = sData as Map<String, dynamic>;
-      final sentenceId = sMap['id'] as String?;
-      if (sentenceId == null) continue;
+      final sentenceIndex = sMap['index'] as int? ?? sMap['idx'] as int?;
+      if (sentenceIndex == null) continue;
 
-      final localSentence = localById[sentenceId];
-      if (localSentence != null) {
-        await _sentenceDao.updateLearningProgress(
-          sentenceId,
-          learned: sMap['learned'] as bool? ?? localSentence.learned,
-          learnCount: sMap['learn_count'] as int? ?? localSentence.learnCount,
-        );
-        await _sentenceDao.updateReviewProgress(
-          sentenceId,
-          isDifficult: sMap['is_difficult'] as bool? ?? localSentence.isDifficult,
-          reviewCount: sMap['review_count'] as int? ?? localSentence.reviewCount,
-          lastReviewed: sMap['last_reviewed'] != null
-              ? DateTime.tryParse(sMap['last_reviewed'] as String)
-              : localSentence.lastReviewed,
-        );
+      final localSentence = localByIndex[sentenceIndex];
+      if (localSentence == null) continue;
+
+      // Merge learning progress: learned = OR, learn_count = max
+      final remoteLearned = sMap['learned'] as bool? ?? false;
+      final remoteLearnCount = sMap['learn_count'] as int? ?? 0;
+      final mergedLearned = localSentence.learned || remoteLearned;
+      final mergedLearnCount = localSentence.learnCount > remoteLearnCount
+          ? localSentence.learnCount
+          : remoteLearnCount;
+
+      await _sentenceDao.updateLearningProgress(
+        localSentence.id,
+        learned: mergedLearned,
+        learnCount: mergedLearnCount,
+      );
+
+      // Merge review progress: is_difficult = OR, review_count = max, last_reviewed = latest
+      final remoteIsDifficult = sMap['is_difficult'] as bool? ?? false;
+      final remoteReviewCount = sMap['review_count'] as int? ?? 0;
+      final mergedIsDifficult = localSentence.isDifficult || remoteIsDifficult;
+      final mergedReviewCount = localSentence.reviewCount > remoteReviewCount
+          ? localSentence.reviewCount
+          : remoteReviewCount;
+
+      DateTime? mergedLastReviewed = localSentence.lastReviewed;
+      final remoteLastReviewedStr = sMap['last_reviewed'] as String?;
+      if (remoteLastReviewedStr != null) {
+        final remoteLastReviewed = DateTime.tryParse(remoteLastReviewedStr);
+        if (remoteLastReviewed != null) {
+          if (mergedLastReviewed == null || remoteLastReviewed.isAfter(mergedLastReviewed)) {
+            mergedLastReviewed = remoteLastReviewed;
+          }
+        }
       }
+
+      await _sentenceDao.updateReviewProgress(
+        localSentence.id,
+        isDifficult: mergedIsDifficult,
+        reviewCount: mergedReviewCount,
+        lastReviewed: mergedLastReviewed,
+      );
     }
   }
 }
@@ -417,6 +460,7 @@ class SyncService {
 class ProgressMerger {
   /// Merges local and remote project data.
   /// Strategy: learned = OR, learn_count = max.
+  /// Matches sentences by index (not ID) since local and remote may use different UUIDs.
   static Map<String, dynamic> merge(
     Map<String, dynamic> local,
     Map<String, dynamic> remote,
@@ -428,17 +472,27 @@ class ProgressMerger {
     final remoteSentences = (remote['sentences'] as List<dynamic>? ?? [])
         .cast<Map<String, dynamic>>();
 
-    final localById = {for (var s in localSentences) s['id']: s};
-    final remoteById = {for (var s in remoteSentences) s['id']: s};
+    // Match by index instead of id, since local/remote use different UUIDs
+    final localByIndex = <int, Map<String, dynamic>>{};
+    for (final s in localSentences) {
+      final idx = s['index'] as int? ?? s['idx'] as int?;
+      if (idx != null) localByIndex[idx] = s;
+    }
+    final remoteByIndex = <int, Map<String, dynamic>>{};
+    for (final s in remoteSentences) {
+      final idx = s['index'] as int? ?? s['idx'] as int?;
+      if (idx != null) remoteByIndex[idx] = s;
+    }
 
-    final allIds = {...localById.keys, ...remoteById.keys};
+    final allIndices = {...localByIndex.keys, ...remoteByIndex.keys};
 
     final mergedSentences = <Map<String, dynamic>>[];
-    for (final id in allIds) {
-      final localS = localById[id];
-      final remoteS = remoteById[id];
+    for (final idx in allIndices) {
+      final localS = localByIndex[idx];
+      final remoteS = remoteByIndex[idx];
 
       if (localS != null && remoteS != null) {
+        // Keep local sentence data (with local ID) but merge progress fields
         final mergedS = Map<String, dynamic>.from(localS);
         mergedS['learned'] = (localS['learned'] as bool? ?? false) ||
             (remoteS['learned'] as bool? ?? false);

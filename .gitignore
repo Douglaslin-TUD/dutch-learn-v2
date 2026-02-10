@@ -28,11 +28,14 @@ wheels/
 *.egg
 
 # Data files (large/personal)
-data/audio/
-data/projects/
-data/uploads/
+/data/
+desktop/data/
 *.db
 *.sqlite3
+
+# Test/coverage artifacts
+.coverage
+htmlcov/
 
 # Gradle
 .gradle/

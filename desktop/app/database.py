@@ -108,6 +108,7 @@ def migrate_db() -> None:
         ("is_difficult", "ALTER TABLE sentences ADD COLUMN is_difficult BOOLEAN NOT NULL DEFAULT 0"),
         ("review_count", "ALTER TABLE sentences ADD COLUMN review_count INTEGER NOT NULL DEFAULT 0"),
         ("last_reviewed", "ALTER TABLE sentences ADD COLUMN last_reviewed DATETIME"),
+        ("speaker_id", "ALTER TABLE sentences ADD COLUMN speaker_id VARCHAR(36) REFERENCES speakers(id) ON DELETE SET NULL"),
     ]
 
     for col_name, sql in migrations:

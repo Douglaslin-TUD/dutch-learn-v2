@@ -49,8 +49,9 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
 
   void _playCurrent() {
     final reviewState = ref.read(reviewProvider);
+    final audioState = ref.read(audioProvider);
     final sentence = reviewState.currentSentence;
-    if (sentence != null) {
+    if (sentence != null && audioState.isLoaded) {
       ref.read(audioProvider.notifier).playSentence(sentence);
       _startAutoRevealTimer();
     }
@@ -80,6 +81,16 @@ class _ReviewScreenState extends ConsumerState<ReviewScreen> {
     final reviewState = ref.watch(reviewProvider);
     final projectState = ref.watch(projectDetailProvider(widget.projectId));
     final theme = Theme.of(context);
+
+    // Auto-play first sentence when sentences finish loading
+    ref.listen<ReviewState>(reviewProvider, (previous, next) {
+      if ((previous == null || previous.isLoading) &&
+          !next.isLoading &&
+          !next.isComplete &&
+          next.sentences.isNotEmpty) {
+        _playCurrent();
+      }
+    });
 
     return Scaffold(
       appBar: AppBar(

@@ -9,7 +9,7 @@ import json
 from pathlib import Path
 from typing import List, Optional
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, BackgroundTasks, Body
 from fastapi.responses import JSONResponse, Response
@@ -57,6 +57,11 @@ class SentenceResponse(BaseModel):
     explanation_nl: Optional[str]
     explanation_en: Optional[str]
     has_explanation: bool
+    speaker_id: Optional[str]
+    learned: bool
+    is_difficult: bool
+    review_count: int
+    last_reviewed: Optional[str]
     keywords: List[KeywordResponse]
 
     class Config:
@@ -234,7 +239,7 @@ async def export_all_projects(
 
     export_data = {
         "version": "1.0",
-        "exported_at": datetime.utcnow().isoformat(),
+        "exported_at": datetime.now(timezone.utc).isoformat(),
         "projects": []
     }
 
@@ -265,6 +270,11 @@ async def export_all_projects(
                 "translation_en": s.translation_en,
                 "explanation_nl": s.explanation_nl,
                 "explanation_en": s.explanation_en,
+                "speaker_id": s.speaker_id,
+                "learned": s.learned or False,
+                "is_difficult": s.is_difficult or False,
+                "review_count": s.review_count or 0,
+                "last_reviewed": s.last_reviewed.isoformat() if s.last_reviewed else None,
                 "keywords": [
                     {
                         "word": k.word,
@@ -333,15 +343,17 @@ async def import_project(
         raise HTTPException(status_code=400, detail="Invalid export format")
 
     for project_data in projects_to_import:
-        # Check if project already exists
-        existing = db.query(Project).filter(Project.id == project_data.get("id")).first()
-        if existing:
-            # Skip existing projects
-            continue
+        # Check if project already exists by original ID
+        original_id = project_data.get("id")
+        if original_id:
+            existing = db.query(Project).filter(Project.id == original_id).first()
+            if existing:
+                # Skip existing projects
+                continue
 
-        # Create new project
+        # Create new project, preserving the original ID if available
         project = Project(
-            id=str(uuid.uuid4()),  # Generate new ID
+            id=original_id or str(uuid.uuid4()),
             name=project_data.get("name", "Imported Project"),
             original_file="",
             audio_file="",
@@ -364,6 +376,11 @@ async def import_project(
                 translation_en=sent_data.get("translation_en"),
                 explanation_nl=sent_data.get("explanation_nl"),
                 explanation_en=sent_data.get("explanation_en"),
+                speaker_id=sent_data.get("speaker_id"),
+                learned=sent_data.get("learned", False),
+                is_difficult=sent_data.get("is_difficult", False),
+                review_count=sent_data.get("review_count", 0),
+                last_reviewed=_parse_datetime(sent_data.get("last_reviewed")),
             )
             db.add(sentence)
             db.flush()
@@ -393,6 +410,20 @@ async def import_project(
             "projects": imported_projects,
         }
     )
+
+
+def _parse_datetime(value: Optional[str]) -> Optional[datetime]:
+    """Parse an ISO datetime string, returning None if invalid or absent."""
+    if not value:
+        return None
+    try:
+        dt = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        # Store as naive UTC to match SQLite convention
+        if dt.tzinfo is not None:
+            dt = dt.replace(tzinfo=None)
+        return dt
+    except (ValueError, TypeError):
+        return None
 
 
 @router.get("/{project_id}")
@@ -523,7 +554,7 @@ async def export_project(
 
     export_data = {
         "version": "1.0",
-        "exported_at": datetime.utcnow().isoformat(),
+        "exported_at": datetime.now(timezone.utc).isoformat(),
         "project": {
             "id": project.id,
             "name": project.name,
@@ -544,6 +575,11 @@ async def export_project(
             "translation_en": s.translation_en,
             "explanation_nl": s.explanation_nl,
             "explanation_en": s.explanation_en,
+            "speaker_id": s.speaker_id,
+            "learned": s.learned or False,
+            "is_difficult": s.is_difficult or False,
+            "review_count": s.review_count or 0,
+            "last_reviewed": s.last_reviewed.isoformat() if s.last_reviewed else None,
             "keywords": [
                 {
                     "word": k.word,
@@ -686,6 +722,6 @@ async def record_review(
         raise HTTPException(status_code=404, detail="Sentence not found")
 
     sentence.review_count = (sentence.review_count or 0) + 1
-    sentence.last_reviewed = datetime.utcnow()
+    sentence.last_reviewed = datetime.now(timezone.utc).replace(tzinfo=None)
     db.commit()
     return {"success": True, "review_count": sentence.review_count}

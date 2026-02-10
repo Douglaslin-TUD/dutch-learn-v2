@@ -204,6 +204,219 @@ class TestProgressMerger:
         result = merger.merge(local, remote)
         assert result["sentences"][0]["learn_count"] == 3
 
+    # --- is_difficult merging ---
+
+    def test_merge_is_difficult_or_local_true(self, merger):
+        """If local marks difficult but remote does not, result should be True."""
+        local = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [
+                {"id": "s1", "text": "Hallo", "is_difficult": True, "index": 0},
+            ],
+            "keywords": [],
+            "progress": {},
+        }
+        remote = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [
+                {"id": "s1", "text": "Hallo", "is_difficult": False, "index": 0},
+            ],
+            "keywords": [],
+            "progress": {},
+        }
+        result = merger.merge(local, remote)
+        assert result["sentences"][0]["is_difficult"] is True
+
+    def test_merge_is_difficult_or_remote_true(self, merger):
+        """If remote marks difficult but local does not, result should be True."""
+        local = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [
+                {"id": "s1", "text": "Hallo", "is_difficult": False, "index": 0},
+            ],
+            "keywords": [],
+            "progress": {},
+        }
+        remote = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [
+                {"id": "s1", "text": "Hallo", "is_difficult": True, "index": 0},
+            ],
+            "keywords": [],
+            "progress": {},
+        }
+        result = merger.merge(local, remote)
+        assert result["sentences"][0]["is_difficult"] is True
+
+    def test_merge_is_difficult_both_false(self, merger):
+        """If neither side marks difficult, result should be False."""
+        local = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [
+                {"id": "s1", "text": "Hallo", "is_difficult": False, "index": 0},
+            ],
+            "keywords": [],
+            "progress": {},
+        }
+        remote = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [
+                {"id": "s1", "text": "Hallo", "is_difficult": False, "index": 0},
+            ],
+            "keywords": [],
+            "progress": {},
+        }
+        result = merger.merge(local, remote)
+        assert result["sentences"][0]["is_difficult"] is False
+
+    # --- review_count merging ---
+
+    def test_merge_review_count_takes_max(self, merger):
+        """review_count should take the higher value from either side."""
+        local = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [
+                {"id": "s1", "text": "Hallo", "review_count": 3, "index": 0},
+            ],
+            "keywords": [],
+            "progress": {},
+        }
+        remote = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [
+                {"id": "s1", "text": "Hallo", "review_count": 7, "index": 0},
+            ],
+            "keywords": [],
+            "progress": {},
+        }
+        result = merger.merge(local, remote)
+        assert result["sentences"][0]["review_count"] == 7
+
+    def test_merge_review_count_none_treated_as_zero(self, merger):
+        """A None review_count should be treated as 0."""
+        local = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [
+                {"id": "s1", "text": "Hallo", "review_count": None, "index": 0},
+            ],
+            "keywords": [],
+            "progress": {},
+        }
+        remote = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [
+                {"id": "s1", "text": "Hallo", "review_count": 2, "index": 0},
+            ],
+            "keywords": [],
+            "progress": {},
+        }
+        result = merger.merge(local, remote)
+        assert result["sentences"][0]["review_count"] == 2
+
+    # --- last_reviewed merging ---
+
+    def test_merge_last_reviewed_takes_latest(self, merger):
+        """last_reviewed should take the more recent timestamp."""
+        local = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [
+                {"id": "s1", "text": "Hallo", "last_reviewed": "2026-01-10T08:00:00", "index": 0},
+            ],
+            "keywords": [],
+            "progress": {},
+        }
+        remote = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [
+                {"id": "s1", "text": "Hallo", "last_reviewed": "2026-01-15T10:00:00", "index": 0},
+            ],
+            "keywords": [],
+            "progress": {},
+        }
+        result = merger.merge(local, remote)
+        assert result["sentences"][0]["last_reviewed"] == "2026-01-15T10:00:00"
+
+    def test_merge_last_reviewed_local_wins_when_later(self, merger):
+        """last_reviewed should prefer local when it is more recent."""
+        local = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [
+                {"id": "s1", "text": "Hallo", "last_reviewed": "2026-01-20T08:00:00", "index": 0},
+            ],
+            "keywords": [],
+            "progress": {},
+        }
+        remote = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [
+                {"id": "s1", "text": "Hallo", "last_reviewed": "2026-01-15T10:00:00", "index": 0},
+            ],
+            "keywords": [],
+            "progress": {},
+        }
+        result = merger.merge(local, remote)
+        assert result["sentences"][0]["last_reviewed"] == "2026-01-20T08:00:00"
+
+    def test_merge_last_reviewed_one_none(self, merger):
+        """When only one side has last_reviewed, it should be used."""
+        local = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [
+                {"id": "s1", "text": "Hallo", "last_reviewed": None, "index": 0},
+            ],
+            "keywords": [],
+            "progress": {},
+        }
+        remote = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [
+                {"id": "s1", "text": "Hallo", "last_reviewed": "2026-01-15T10:00:00", "index": 0},
+            ],
+            "keywords": [],
+            "progress": {},
+        }
+        result = merger.merge(local, remote)
+        assert result["sentences"][0]["last_reviewed"] == "2026-01-15T10:00:00"
+
+    def test_merge_last_reviewed_both_none(self, merger):
+        """When both sides have no last_reviewed, result should be None."""
+        local = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [
+                {"id": "s1", "text": "Hallo", "index": 0},
+            ],
+            "keywords": [],
+            "progress": {},
+        }
+        remote = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [
+                {"id": "s1", "text": "Hallo", "index": 0},
+            ],
+            "keywords": [],
+            "progress": {},
+        }
+        result = merger.merge(local, remote)
+        assert result["sentences"][0]["last_reviewed"] is None
+
     # --- Keyword merging ---
 
     def test_merge_keywords_prefers_local(self, merger):
@@ -273,6 +486,181 @@ class TestProgressMerger:
         }
         result = merger.merge(local, remote)
         assert result["keywords"] == []
+
+    # --- Speaker merging ---
+
+    def test_merge_speakers_local_only(self, merger):
+        """Speakers only in local should appear in merged output."""
+        local = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [],
+            "keywords": [],
+            "speakers": [
+                {"id": "sp1", "label": "A", "display_name": "Jan", "is_manual": False},
+            ],
+            "progress": {},
+        }
+        remote = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [],
+            "keywords": [],
+            "speakers": [],
+            "progress": {},
+        }
+        result = merger.merge(local, remote)
+        assert len(result["speakers"]) == 1
+        assert result["speakers"][0]["display_name"] == "Jan"
+
+    def test_merge_speakers_remote_only(self, merger):
+        """Speakers only in remote should appear in merged output."""
+        local = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [],
+            "keywords": [],
+            "speakers": [],
+            "progress": {},
+        }
+        remote = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [],
+            "keywords": [],
+            "speakers": [
+                {"id": "sp1", "label": "A", "display_name": "Piet", "is_manual": True},
+            ],
+            "progress": {},
+        }
+        result = merger.merge(local, remote)
+        assert len(result["speakers"]) == 1
+        assert result["speakers"][0]["display_name"] == "Piet"
+
+    def test_merge_speakers_prefers_manual_remote(self, merger):
+        """When remote has is_manual=True and local does not, remote wins."""
+        local = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [],
+            "keywords": [],
+            "speakers": [
+                {"id": "sp1", "label": "A", "display_name": "Speaker A", "is_manual": False},
+            ],
+            "progress": {},
+        }
+        remote = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [],
+            "keywords": [],
+            "speakers": [
+                {"id": "sp1", "label": "A", "display_name": "Jan", "is_manual": True},
+            ],
+            "progress": {},
+        }
+        result = merger.merge(local, remote)
+        assert len(result["speakers"]) == 1
+        assert result["speakers"][0]["display_name"] == "Jan"
+        assert result["speakers"][0]["is_manual"] is True
+
+    def test_merge_speakers_prefers_local_when_both_manual(self, merger):
+        """When both sides have is_manual=True, local wins."""
+        local = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [],
+            "keywords": [],
+            "speakers": [
+                {"id": "sp1", "label": "A", "display_name": "Jan (local)", "is_manual": True},
+            ],
+            "progress": {},
+        }
+        remote = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [],
+            "keywords": [],
+            "speakers": [
+                {"id": "sp1", "label": "A", "display_name": "Jan (remote)", "is_manual": True},
+            ],
+            "progress": {},
+        }
+        result = merger.merge(local, remote)
+        assert len(result["speakers"]) == 1
+        assert result["speakers"][0]["display_name"] == "Jan (local)"
+
+    def test_merge_speakers_prefers_local_when_neither_manual(self, merger):
+        """When neither side has is_manual, local wins."""
+        local = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [],
+            "keywords": [],
+            "speakers": [
+                {"id": "sp1", "label": "A", "display_name": "Local Auto", "is_manual": False},
+            ],
+            "progress": {},
+        }
+        remote = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [],
+            "keywords": [],
+            "speakers": [
+                {"id": "sp1", "label": "A", "display_name": "Remote Auto", "is_manual": False},
+            ],
+            "progress": {},
+        }
+        result = merger.merge(local, remote)
+        assert len(result["speakers"]) == 1
+        assert result["speakers"][0]["display_name"] == "Local Auto"
+
+    def test_merge_speakers_combines_different_ids(self, merger):
+        """Speakers with different IDs from both sides are combined."""
+        local = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [],
+            "keywords": [],
+            "speakers": [
+                {"id": "sp1", "label": "A", "display_name": "Jan", "is_manual": False},
+            ],
+            "progress": {},
+        }
+        remote = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [],
+            "keywords": [],
+            "speakers": [
+                {"id": "sp2", "label": "B", "display_name": "Piet", "is_manual": False},
+            ],
+            "progress": {},
+        }
+        result = merger.merge(local, remote)
+        assert len(result["speakers"]) == 2
+        labels = {s["label"] for s in result["speakers"]}
+        assert labels == {"A", "B"}
+
+    def test_merge_speakers_missing_key_defaults_to_empty(self, merger):
+        """When input data has no 'speakers' key, result should still have speakers list."""
+        local = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [],
+            "keywords": [],
+            "progress": {},
+        }
+        remote = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [],
+            "keywords": [],
+            "progress": {},
+        }
+        result = merger.merge(local, remote)
+        assert result["speakers"] == []
 
     # --- Progress merging ---
 
@@ -391,6 +779,30 @@ class TestProgressMerger:
         result = merger.merge(local, remote)
         assert result["progress"]["total_sentences"] == 3
         assert result["progress"]["learned_sentences"] == 2
+
+    def test_merge_progress_recalculates_difficult_count(self, merger):
+        """Merged progress should recalculate difficult_sentences count."""
+        local = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [
+                {"id": "s1", "text": "A", "is_difficult": True, "index": 0},
+                {"id": "s2", "text": "B", "is_difficult": False, "index": 1},
+            ],
+            "keywords": [],
+            "progress": {},
+        }
+        remote = {
+            "id": "p1",
+            "name": "Test",
+            "sentences": [
+                {"id": "s3", "text": "C", "is_difficult": True, "index": 2},
+            ],
+            "keywords": [],
+            "progress": {},
+        }
+        result = merger.merge(local, remote)
+        assert result["progress"]["difficult_sentences"] == 2
 
     # --- Project metadata ---
 

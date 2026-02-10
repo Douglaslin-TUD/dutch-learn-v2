@@ -12,6 +12,7 @@ import 'package:dutch_learn_app/data/local/daos/speaker_dao.dart';
 import 'package:dutch_learn_app/data/models/keyword_model.dart';
 import 'package:dutch_learn_app/data/models/project_model.dart';
 import 'package:dutch_learn_app/data/models/sentence_model.dart';
+import 'package:dutch_learn_app/data/models/speaker_model.dart';
 import 'package:dutch_learn_app/domain/entities/project.dart';
 import 'package:dutch_learn_app/domain/entities/sentence.dart';
 import 'package:dutch_learn_app/domain/repositories/project_repository.dart';
@@ -257,6 +258,32 @@ class ProjectRepositoryImpl implements ProjectRepository {
       // Insert project
       await _projectDao.insert(project);
 
+      // Import speakers and build ID remapping
+      final speakersList = jsonData['speakers'] as List<dynamic>? ?? [];
+      final speakerModels = <SpeakerModel>[];
+      final speakerIdMap = <String, String>{}; // remote ID -> local ID
+
+      for (final spData in speakersList) {
+        final spMap = spData as Map<String, dynamic>;
+        final localSpeakerId = _uuid.v4();
+        final remoteId = spMap['id'] as String? ?? '';
+        if (remoteId.isNotEmpty) {
+          speakerIdMap[remoteId] = localSpeakerId;
+        }
+        speakerModels.add(SpeakerModel(
+          id: localSpeakerId,
+          projectId: projectId,
+          label: spMap['label'] as String? ?? '',
+          displayName: spMap['display_name'] as String?,
+          confidence: (spMap['confidence'] as num?)?.toDouble() ?? 0.0,
+          evidence: spMap['evidence'] as String?,
+          isManual: spMap['is_manual'] as bool? ?? false,
+        ));
+      }
+      if (speakerModels.isNotEmpty) {
+        await _speakerDao.insertBatch(speakerModels);
+      }
+
       // Process sentences and keywords
       final sentenceModels = <SentenceModel>[];
       final keywordModels = <KeywordModel>[];
@@ -270,6 +297,12 @@ class ProjectRepositoryImpl implements ProjectRepository {
           sentenceIdMap[remoteSentenceId] = sentenceId;
         }
 
+        // Map remote speaker ID to local speaker ID
+        final remoteSpeakerId = sentenceMap['speaker_id'] as String?;
+        final localSpeakerId = remoteSpeakerId != null
+            ? speakerIdMap[remoteSpeakerId]
+            : null;
+
         final sentence = SentenceModel(
           id: sentenceId,
           projectId: projectId,
@@ -282,7 +315,7 @@ class ProjectRepositoryImpl implements ProjectRepository {
           explanationEn: sentenceMap['explanation_en'] as String?,
           learned: sentenceMap['learned'] as bool? ?? false,
           learnCount: sentenceMap['learn_count'] as int? ?? 0,
-          speakerId: sentenceMap['speaker_id'] as String?,
+          speakerId: localSpeakerId,
           isDifficult: sentenceMap['is_difficult'] as bool? ?? false,
           reviewCount: sentenceMap['review_count'] as int? ?? 0,
           lastReviewed: sentenceMap['last_reviewed'] != null

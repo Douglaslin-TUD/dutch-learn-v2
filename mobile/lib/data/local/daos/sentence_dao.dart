@@ -138,19 +138,25 @@ class SentenceDao {
     );
   }
 
-  /// Toggles is_difficult flag on a sentence.
+  /// Toggles is_difficult flag on a sentence atomically.
+  ///
+  /// Returns the new value of is_difficult (true if now difficult).
   Future<bool> toggleDifficult(String id) async {
     final db = await _database.database;
-    final sentence = await getById(id);
-    if (sentence == null) return false;
-    final newValue = sentence.isDifficult ? 0 : 1;
-    await db.update(
+    await db.rawUpdate(
+      'UPDATE sentences SET is_difficult = 1 - is_difficult WHERE id = ?',
+      [id],
+    );
+    // Read back the new value
+    final result = await db.query(
       'sentences',
-      {'is_difficult': newValue},
+      columns: ['is_difficult'],
       where: 'id = ?',
       whereArgs: [id],
+      limit: 1,
     );
-    return newValue == 1;
+    if (result.isEmpty) return false;
+    return (result.first['is_difficult'] as int? ?? 0) == 1;
   }
 
   /// Gets all difficult sentences for a project.
