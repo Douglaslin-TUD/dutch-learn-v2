@@ -39,7 +39,7 @@ class Settings(BaseSettings):
 
     # Processing Configuration
     whisper_model: str = "whisper-1"
-    gpt_model: str = "gpt-4o-mini"
+    gpt_model: str = "gpt-5"
     explanation_batch_size: int = 5
     max_retries: int = 3
     max_sentence_words: int = 100

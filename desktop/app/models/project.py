@@ -62,7 +62,7 @@ class Project(Base):
 
     __table_args__ = (
         CheckConstraint(
-            "status IN ('pending', 'extracting', 'transcribing', 'explaining', 'ready', 'error')",
+            "status IN ('pending', 'extracting', 'transcribing', 'identifying', 'explaining', 'ready', 'error')",
             name="check_valid_status",
         ),
     )
@@ -79,6 +79,7 @@ class Project(Base):
             "pending": 0,
             "extracting": 10,
             "transcribing": 30,
+            "identifying": 40,
             "explaining": 50,
             "ready": 100,
             "error": 0,
@@ -103,6 +104,7 @@ class Project(Base):
             "pending": "Waiting to start...",
             "extracting": "Extracting audio from video...",
             "transcribing": "Transcribing audio to text...",
+            "identifying": "Identifying speakers...",
             "explaining": f"Generating explanations ({self.processed_sentences}/{self.total_sentences})...",
             "ready": "Processing complete",
             "error": f"Error: {self.error_message or 'Unknown error'}",
