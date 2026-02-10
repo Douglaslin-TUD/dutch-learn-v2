@@ -6,6 +6,7 @@ Coordinates the entire processing pipeline from file upload to final explanation
 
 import asyncio
 import json
+import logging
 from pathlib import Path
 from typing import Optional
 import uuid
@@ -19,7 +20,11 @@ from app.services.audio_extractor import AudioExtractor, AudioExtractionError
 from app.services.assemblyai_transcriber import AssemblyAITranscriber, TranscriptionError
 from app.services.explainer import Explainer, ExplanationError
 from app.services.sentence_splitter import SentenceSplitter
+from app.services.speaker_identifier import SpeakerIdentifier
 from app.utils.file_utils import is_video_file, get_audio_path, get_upload_path
+
+
+logger = logging.getLogger(__name__)
 
 
 class ProcessingError(Exception):
@@ -34,8 +39,9 @@ class Processor:
     Pipeline stages:
     1. Extract audio (if video file)
     2. Transcribe audio to text with timestamps
-    3. Generate explanations and extract vocabulary
-    4. Store everything in database
+    3. Identify speakers via AI analysis
+    4. Generate explanations and extract vocabulary
+    5. Store everything in database
 
     Example:
         processor = Processor()
@@ -47,6 +53,7 @@ class Processor:
         self.audio_extractor = AudioExtractor()
         self.transcriber: Optional[AssemblyAITranscriber] = None
         self.explainer: Optional[Explainer] = None
+        self.speaker_identifier: Optional[SpeakerIdentifier] = None
 
     def _init_api_services(self) -> None:
         """Initialize API-dependent services lazily."""
@@ -54,6 +61,8 @@ class Processor:
             self.transcriber = AssemblyAITranscriber()
         if self.explainer is None:
             self.explainer = Explainer()
+        if self.speaker_identifier is None:
+            self.speaker_identifier = SpeakerIdentifier()
 
     def _update_project_status(
         self,
@@ -188,6 +197,59 @@ class Processor:
         except TranscriptionError as e:
             raise ProcessingError(f"Transcription failed: {str(e)}")
 
+    async def _identify_speakers(self, project: Project, db: Session) -> None:
+        """
+        Identify speakers using AI analysis of the full transcript.
+
+        This stage is non-blocking: if identification fails, the pipeline
+        continues and speakers keep their A/B/C labels.
+
+        Args:
+            project: Project instance.
+            db: Database session.
+        """
+        try:
+            sentences = db.query(Sentence).filter(
+                Sentence.project_id == project.id
+            ).order_by(Sentence.idx).all()
+
+            speakers = db.query(Speaker).filter(
+                Speaker.project_id == project.id
+            ).all()
+
+            if not speakers or not sentences:
+                return
+
+            # Build speaker_id -> label mapping
+            id_to_label = {s.id: s.label for s in speakers}
+
+            # Build transcript for identification
+            transcript = []
+            for s in sentences:
+                label = id_to_label.get(s.speaker_id, "?")
+                transcript.append({"label": label, "text": s.text})
+
+            # Call GPT for identification
+            results = await self.speaker_identifier.identify(transcript, project.name)
+
+            # Update speaker records
+            for speaker in speakers:
+                if speaker.label in results:
+                    r = results[speaker.label]
+                    speaker.display_name = r.name
+                    speaker.evidence = json.dumps({
+                        "role": r.role,
+                        "confidence": r.confidence,
+                        "reasoning": r.evidence,
+                    }, ensure_ascii=False)
+            db.commit()
+
+            logger.info(f"Identified {len(results)} speakers for project {project.id}")
+
+        except Exception as e:
+            logger.warning(f"Speaker identification failed for project {project.id}: {e}")
+            # Non-blocking: continue to explanation stage
+
     async def _generate_explanations(
         self,
         project: Project,
@@ -263,8 +325,9 @@ class Processor:
         Pipeline stages:
         1. pending -> extracting: Extract audio from video
         2. extracting -> transcribing: Transcribe audio to text
-        3. transcribing -> explaining: Generate explanations
-        4. explaining -> ready: Processing complete
+        3. transcribing -> identifying: Identify speakers via AI
+        4. identifying -> explaining: Generate explanations
+        5. explaining -> ready: Processing complete
 
         Args:
             project_id: UUID of the project to process.
@@ -290,11 +353,15 @@ class Processor:
                 self._update_project_status(db, project_id, "transcribing")
                 await self._transcribe_audio(audio_path, project, db)
 
-                # Stage 3: Generate explanations
+                # Stage 3: Identify speakers (AI-powered)
+                self._update_project_status(db, project_id, "identifying")
+                await self._identify_speakers(project, db)
+
+                # Stage 4: Generate explanations
                 self._update_project_status(db, project_id, "explaining")
                 await self._generate_explanations(project, db)
 
-                # Stage 4: Complete
+                # Stage 5: Complete
                 self._update_project_status(db, project_id, "ready")
 
         except ProcessingError as e:
