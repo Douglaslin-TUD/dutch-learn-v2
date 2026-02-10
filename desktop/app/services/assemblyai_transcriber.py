@@ -30,12 +30,21 @@ class SpeakerInfo:
 
 
 @dataclass
+class WordTimestamp:
+    """Timestamp information for a single word."""
+    text: str
+    start: float  # seconds
+    end: float    # seconds
+
+
+@dataclass
 class UtteranceInfo:
     """Information about a single utterance."""
     text: str
     start: float
     end: float
     speaker_label: str
+    words: List[WordTimestamp] = field(default_factory=list)
 
 
 @dataclass
@@ -138,7 +147,17 @@ class AssemblyAITranscriber:
     def _parse_transcript(self, transcript: aai.Transcript) -> TranscriptionResult:
         """Parse AssemblyAI transcript into our data structures."""
 
-        # Extract speakers
+        # Build word timestamps from transcript.words
+        all_words = []
+        if transcript.words:
+            for w in transcript.words:
+                all_words.append(WordTimestamp(
+                    text=w.text,
+                    start=w.start / 1000.0,
+                    end=w.end / 1000.0,
+                ))
+
+        # Extract speakers and utterances
         speaker_labels = set()
         speaker_utterances: Dict[str, List[str]] = {}
 
@@ -154,11 +173,21 @@ class AssemblyAITranscriber:
                     speaker_utterances[speaker_label] = []
                 speaker_utterances[speaker_label].append(utt.text)
 
+                utt_start = utt.start / 1000.0
+                utt_end = utt.end / 1000.0
+
+                # Match words to this utterance by time overlap
+                utt_words = [
+                    w for w in all_words
+                    if w.start >= utt_start - 0.01 and w.end <= utt_end + 0.01
+                ]
+
                 utterances.append(UtteranceInfo(
                     text=utt.text,
-                    start=utt.start / 1000.0,  # Convert ms to seconds
-                    end=utt.end / 1000.0,
+                    start=utt_start,
+                    end=utt_end,
                     speaker_label=speaker_label,
+                    words=utt_words,
                 ))
 
         # Build speaker info
